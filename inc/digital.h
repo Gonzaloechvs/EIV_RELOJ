@@ -1,10 +1,10 @@
 /*********************************************************************************************************************
-Copyright 2016-2025, Laboratorio de Microprocesadores
+Copyright 2026-2035, Laboratorio de Microprocesadores
 Facultad de Ciencias Exactas y Tecnologia
 Universidad Nacional de Tucuman
 http://www.microprocesadores.unt.edu.ar/
 
-Copyright 2016-2025, Esteban Volentini <evolentini@herrera.unt.edu.ar>
+Copyright 2026-2035, Gonzalo Chaves <gonzaloechvs@gmail.com>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -49,6 +49,8 @@ extern "C" {
 
 typedef struct digital_output_s * digital_output_t;
 
+typedef struct digital_input_s * digital_input_t;
+
 /* === Public variable declarations ================================================================================ */
 
 /* === Public function declarations ================================================================================ */
@@ -60,6 +62,16 @@ void DigitalOutputActivate(digital_output_t self);
 void DigitalOutputDeactivate(digital_output_t self);
 
 void DigitalOutputToggle(digital_output_t self);
+
+digital_input_t DigitalInputCreate(uint32_t puerto, uint8_t terminal, bool estado_invertido);
+
+bool DigitalInputGetState(digital_input_t self);
+
+bool DigitalInputHasChanged(digital_input_t self);
+
+bool DigitalInputHasActivated(digital_input_t self);
+
+bool DigitalInputHasDeactivated(digital_input_t self);
 
 /* === End of conditional blocks =================================================================================== */
 

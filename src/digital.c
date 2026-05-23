@@ -1,10 +1,10 @@
 /*********************************************************************************************************************
-Copyright 2016-2025, Laboratorio de Microprocesadores
-Facultad de Ciencias Exactas y Tecnología
+Copyright 2026-2035, Laboratorio de Microprocesadores
+Facultad de Ciencias Exactas y Tecnologia
 Universidad Nacional de Tucuman
 http://www.microprocesadores.unt.edu.ar/
 
-Copyright 2016-2025, Esteban Volentini <evolentini@herrera.unt.edu.ar>
+Copyright 2026-2035, Gonzalo Chaves <gonzaloechvs@gmail.com>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -69,7 +69,7 @@ digital_output_t DigitalOutputCreate(uint32_t puerto, uint8_t terminal) {
         self->puerto = puerto;
         self->terminal = terminal;
         Chip_GPIO_SetPinDIR(LPC_GPIO_PORT, self->puerto, self->terminal, true);
-
+        DigitalOutputDeactivate(self);
     }
     return self;
 }
@@ -88,5 +88,49 @@ void DigitalOutputToggle(digital_output_t self) {
     Chip_GPIO_SetPinToggle(LPC_GPIO_PORT, self->puerto, self->terminal);
     // Alternar el estado de la salida digital (toggle del pin)
 }
+
+digital_input_t DigitalInputCreate(uint32_t puerto, uint8_t terminal, bool estado_invertido) {
+    digital_input_t self;
+    self = malloc(sizeof(struct digital_input_s));
+    if (self != NULL) {
+        self->puerto = puerto;
+        self->terminal = terminal;
+        self->estado_invertido = estado_invertido;
+        self->ultimo_estado = DigitalInputGetState(self);
+        Chip_GPIO_SetPinDIR(LPC_GPIO_PORT, self->puerto, self->terminal, false);
+    }
+    return self;
+}
+
+bool DigitalInputGetState(digital_input_t self){
+    bool estado = (Chip_GPIO_ReadPortBit(LPC_GPIO_PORT, self->puerto, self->terminal) != 0);
+    if (self->estado_invertido) {
+        estado = !estado;
+    }
+    return estado;
+    // Obtener el estado actual de la entrada digital (leer el pin)
+
+}
+
+bool DigitalInputHasChanged(digital_input_t self){
+    bool estado_actual = DigitalInputGetState(self);
+    bool ha_cambiado = (estado_actual != self->ultimo_estado);
+    self->ultimo_estado = estado_actual;
+    return ha_cambiado;
+    // Determinar si el estado de la entrada digital ha cambiado desde la última lectura
+
+}
+
+bool DigitalInputHasActivated(digital_input_t self){
+    return DigitalInputHasChanged(self) && DigitalInputGetState(self);
+    // Determinar si la entrada digital ha sido activada (flanco ascendente)
+
+}
+
+bool DigitalInputHasDeactivated(digital_input_t self){
+    return DigitalInputHasChanged(self) && !DigitalInputGetState(self);
+    // Determinar si la entrada digital ha sido desactivada (flanco descendente)
+}
+
 
 /* === End of documentation ==================================================================== */
