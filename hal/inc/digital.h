@@ -28,14 +28,15 @@ SPDX-License-Identifier: MIT
 
 #ifndef DIGITAL_H_
 #define DIGITAL_H_
-#include <stdint.h>
-#include <stdbool.h>
 
 /** @file digital.h
  ** @brief Definición de tipos y funciones para manejo de señales digitales
  **/
 
 /* === Headers files inclusions ==================================================================================== */
+
+#include <stdint.h>
+#include <stdbool.h>
 
 /* === Header for C++ compatibility ================================================================================ */
 
@@ -55,13 +56,15 @@ typedef struct digital_input_s * digital_input_t;
 
 /* === Public function declarations ================================================================================ */
 
-digital_output_t DigitalOutputCreate(uint32_t puerto, uint8_t terminal);
+digital_output_t DigitalOutputCreate(uint32_t puerto, uint8_t terminal, bool estado_invertido);
 
 void DigitalOutputActivate(digital_output_t self);
 
 void DigitalOutputDeactivate(digital_output_t self);
 
 void DigitalOutputToggle(digital_output_t self);
+
+bool DigitalOutputGetState(digital_output_t self);
 
 digital_input_t DigitalInputCreate(uint32_t puerto, uint8_t terminal, bool estado_invertido);
 

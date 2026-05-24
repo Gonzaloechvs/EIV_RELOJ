@@ -43,6 +43,7 @@ SPDX-License-Identifier: MIT
 struct digital_output_s {
     uint32_t puerto;
     uint8_t terminal;
+    bool estado_invertido;
 };
 
 struct digital_input_s {
@@ -62,12 +63,13 @@ struct digital_input_s {
 
 /* === Public function implementation ========================================================== */
 
-digital_output_t DigitalOutputCreate(uint32_t puerto, uint8_t terminal) {
+digital_output_t DigitalOutputCreate(uint32_t puerto, uint8_t terminal, bool estado_invertido) {
     digital_output_t self;
     self = malloc(sizeof(struct digital_output_s));
     if (self != NULL) {
         self->puerto = puerto;
         self->terminal = terminal;
+        self->estado_invertido = estado_invertido;
         Chip_GPIO_SetPinDIR(LPC_GPIO_PORT, self->puerto, self->terminal, true);
         DigitalOutputDeactivate(self);
     }
@@ -75,18 +77,23 @@ digital_output_t DigitalOutputCreate(uint32_t puerto, uint8_t terminal) {
 }
 
 void DigitalOutputActivate(digital_output_t self) {
-    Chip_GPIO_SetPinState(LPC_GPIO_PORT, self->puerto, self->terminal, true);
+    Chip_GPIO_SetPinState(LPC_GPIO_PORT, self->puerto, self->terminal, !self->estado_invertido);
     // Activar la salida digital (setear el pin)
 }
 
 void DigitalOutputDeactivate(digital_output_t self) {
-    Chip_GPIO_SetPinState(LPC_GPIO_PORT, self->puerto, self->terminal, false);
+    Chip_GPIO_SetPinState(LPC_GPIO_PORT, self->puerto, self->terminal, self->estado_invertido);
     // Desactivar la salida digital (resetear el pin)
 }
 
 void DigitalOutputToggle(digital_output_t self) {
     Chip_GPIO_SetPinToggle(LPC_GPIO_PORT, self->puerto, self->terminal);
     // Alternar el estado de la salida digital (toggle del pin)
+}
+
+bool DigitalOutputGetState(digital_output_t self) {
+    return Chip_GPIO_ReadPortBit(LPC_GPIO_PORT, self->puerto, self->terminal) != 0;
+    // Obtener el estado actual de la salida digital (leer el pin)
 }
 
 digital_input_t DigitalInputCreate(uint32_t puerto, uint8_t terminal, bool estado_invertido) {
@@ -96,8 +103,8 @@ digital_input_t DigitalInputCreate(uint32_t puerto, uint8_t terminal, bool estad
         self->puerto = puerto;
         self->terminal = terminal;
         self->estado_invertido = estado_invertido;
-        self->ultimo_estado = DigitalInputGetState(self);
         Chip_GPIO_SetPinDIR(LPC_GPIO_PORT, self->puerto, self->terminal, false);
+        self->ultimo_estado = DigitalInputGetState(self);
     }
     return self;
 }
@@ -117,18 +124,24 @@ bool DigitalInputHasChanged(digital_input_t self){
     bool ha_cambiado = (estado_actual != self->ultimo_estado);
     self->ultimo_estado = estado_actual;
     return ha_cambiado;
-    // Determinar si el estado de la entrada digital ha cambiado desde la última lectura
+    // Determinar si el estado de la entrada digital ha cambiado desde la última lectura sin sobreescribir el ultimo estado
 
 }
 
 bool DigitalInputHasActivated(digital_input_t self){
-    return DigitalInputHasChanged(self) && DigitalInputGetState(self);
+    bool estado_actual = DigitalInputGetState(self);
+    bool ha_activado = (estado_actual && !self->ultimo_estado);
+    self->ultimo_estado = estado_actual; 
+    return ha_activado;
     // Determinar si la entrada digital ha sido activada (flanco ascendente)
 
 }
 
 bool DigitalInputHasDeactivated(digital_input_t self){
-    return DigitalInputHasChanged(self) && !DigitalInputGetState(self);
+    bool estado_actual = DigitalInputGetState(self);
+    bool ha_desactivado = (!estado_actual && self->ultimo_estado);
+    self->ultimo_estado = estado_actual;
+    return ha_desactivado;
     // Determinar si la entrada digital ha sido desactivada (flanco descendente)
 }
 
