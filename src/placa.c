@@ -32,6 +32,7 @@ SPDX-License-Identifier: MIT
 
 /* === Headers files inclusions ================================================================ */
 
+#include "board.h"
 #include "placa.h"
 #include "chip.h"
 
