@@ -40,12 +40,18 @@ SPDX-License-Identifier: MIT
 
 /* === Private data type declarations ========================================================== */
 
+/**
+ * @brief Estructura interna de una salida digital.
+ */
 struct digital_output_s {
     uint32_t puerto;
     uint8_t terminal;
     bool estado_invertido;
 };
 
+/**
+ * @brief Estructura interna de una entrada digital.
+ */
 struct digital_input_s {
     uint32_t puerto;
     uint8_t terminal;

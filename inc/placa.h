@@ -30,7 +30,10 @@ SPDX-License-Identifier: MIT
 #define PLACA_H_
 
 /** @file placa.h
- ** @brief Definición de tipos y funciones para manejo de la placa EDU-CIAA-NXP
+ ** @brief Definición de tipos y funciones para el manejo integral de la placa EDU-CIAA-NXP.
+ **
+ ** Este módulo agrupa y configura todas las entradas y salidas digitales
+ ** disponibles en la placa (LEDS y teclas), proveyendo una interfaz única.
  **/
 
 /* === Headers files inclusions ==================================================================================== */
@@ -47,19 +50,21 @@ extern "C" {
 
 /* === Public data type declarations =============================================================================== */
 
-typedef struct board_s{
+/**
+ * @brief Estructura que encapsula todos los periféricos digitales de la placa EDU-CIAA-NXP.
+ */
+typedef struct board_s {
+    digital_output_t led_rgb_rojo;  /**< Puntero al LED RGB canal Rojo */
+    digital_output_t led_rgb_verde; /**< Puntero al LED RGB canal Verde */
+    digital_output_t led_rgb_azul;  /**< Puntero al LED RGB canal Azul */
+    digital_output_t led_amarillo;  /**< Puntero al LED Amarillo independiente */
+    digital_output_t led_rojo;      /**< Puntero al LED Rojo independiente */
+    digital_output_t led_verde;     /**< Puntero al LED Verde independiente */
 
-    digital_output_t led_rgb_rojo;
-    digital_output_t led_rgb_verde;
-    digital_output_t led_rgb_azul;
-    digital_output_t led_amarillo;
-    digital_output_t led_rojo;
-    digital_output_t led_verde;
-
-    digital_input_t tecla_probar;
-    digital_input_t tecla_cambiar;
-    digital_input_t tecla_prender;
-    digital_input_t tecla_apagar;
+    digital_input_t tecla_probar;  /**< Puntero a la Tecla 4 (TEC4) */
+    digital_input_t tecla_cambiar; /**< Puntero a la Tecla 3 (TEC3) */
+    digital_input_t tecla_prender; /**< Puntero a la Tecla 1 (TEC1) */
+    digital_input_t tecla_apagar;  /**< Puntero a la Tecla 2 (TEC2) */
 
 } const * const board_t;
 
@@ -67,6 +72,12 @@ typedef struct board_s{
 
 /* === Public function declarations ================================================================================ */
 
+/**
+ * @brief Inicializa el hardware de la placa y configura todos sus periféricos.
+ * * Llama a la configuración base de la placa (multiplexor de pines) e instancia
+ * los objetos `digital_output_t` y `digital_input_t` correspondientes a cada LED y tecla.
+ * * @return board_t Puntero constante a la estructura que contiene los accesos a los periféricos.
+ */
 board_t BoardCreate(void);
 
 /* === End of conditional blocks =================================================================================== */

@@ -24,10 +24,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 SPDX-License-Identifier: MIT
 *************************************************************************************************/
 
-/** \brief EDU-CIAA-NXP board sample application
+/** @file main.c
+ ** @brief Punto de entrada de la aplicación y lógica de control de periféricos
  **
  ** \addtogroup samples Samples
- ** \brief Samples applications with MUJU Framwork
+ ** \brief Samples applications with MUJU Framework
  ** @{ */
 
 /* === Headers files inclusions =============================================================== */
@@ -39,6 +40,9 @@ SPDX-License-Identifier: MIT
 #include "placa.h"
 
 /* === Macros definitions ====================================================================== */
+
+#define RETARDO_MS_DEFAULT   100     // Tiempo total de espera en milisegundos
+#define CICLOS_POR_MS        25000   // Iteraciones necesarias para simular 1 ms
 
 /* === Private data type declarations ========================================================== */
 
@@ -141,8 +145,8 @@ static void TestLed(board_t placa) {
 }
 
 static void Delay(void) {
-    for (int index = 0; index < 100; index++) {
-        for (int delay = 0; delay < 25000; delay++) {
+    for (int index = 0; index < RETARDO_MS_DEFAULT; index++) {
+        for (int delay = 0; delay < CICLOS_POR_MS; delay++) {
             __asm("NOP");
         }
     }
