@@ -131,23 +131,15 @@ bool DigitalInputHasChanged(digital_input_t self){
     self->ultimo_estado = estado_actual;
     return ha_cambiado;
     // Determinar si el estado de la entrada digital ha cambiado desde la última lectura sin sobreescribir el ultimo estado
-
 }
 
 bool DigitalInputHasActivated(digital_input_t self){
-    bool estado_actual = DigitalInputGetState(self);
-    bool ha_activado = (estado_actual && !self->ultimo_estado);
-    self->ultimo_estado = estado_actual; 
-    return ha_activado;
+    return DigitalInputHasChanged(self) && self->ultimo_estado;
     // Determinar si la entrada digital ha sido activada (flanco ascendente)
-
 }
 
 bool DigitalInputHasDeactivated(digital_input_t self){
-    bool estado_actual = DigitalInputGetState(self);
-    bool ha_desactivado = (!estado_actual && self->ultimo_estado);
-    self->ultimo_estado = estado_actual;
-    return ha_desactivado;
+    return DigitalInputHasChanged(self) && !self->ultimo_estado;
     // Determinar si la entrada digital ha sido desactivada (flanco descendente)
 }
 
