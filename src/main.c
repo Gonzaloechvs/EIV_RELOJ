@@ -137,9 +137,37 @@ static void ToggleLed(board_t placa) {
 }
 
 static void TestLed(board_t placa) {
-    if (DigitalInputGetState(placa->tecla_probar)) {
+    //if (DigitalInputGetState(placa->tecla_probar)) {
+    if ((DigitalInputGetState(placa->tecla_aceptar)||DigitalInputGetState(placa->tecla_cancelar))) {
+    // if ((DigitalInputGetState(placa->tecla_F1)||DigitalInputGetState(placa->tecla_F2)||DigitalInputGetState(placa->tecla_F3)||DigitalInputGetState(placa->tecla_F4))) {
+        DigitalOutputActivate(placa->digito_1);
+        DigitalOutputActivate(placa->digito_2);
+        DigitalOutputActivate(placa->digito_3);
+        DigitalOutputActivate(placa->digito_4);
+
+        DigitalOutputActivate(placa->segmento_a);
+        DigitalOutputActivate(placa->segmento_b);
+        DigitalOutputActivate(placa->segmento_c);
+        DigitalOutputActivate(placa->segmento_d);
+        DigitalOutputActivate(placa->segmento_e);
+        DigitalOutputActivate(placa->segmento_f);
+        DigitalOutputActivate(placa->segmento_g);
+        DigitalOutputActivate(placa->segmento_p);
+
         DigitalOutputActivate(placa->led_verde);
     } else {
+        DigitalOutputDeactivate(placa->digito_1);
+        DigitalOutputDeactivate(placa->digito_2);
+        DigitalOutputDeactivate(placa->digito_3);
+        DigitalOutputDeactivate(placa->digito_4);
+        DigitalOutputDeactivate(placa->segmento_a);
+        DigitalOutputDeactivate(placa->segmento_b);
+        DigitalOutputDeactivate(placa->segmento_c);
+        DigitalOutputDeactivate(placa->segmento_d);
+        DigitalOutputDeactivate(placa->segmento_e);
+        DigitalOutputDeactivate(placa->segmento_f);
+        DigitalOutputDeactivate(placa->segmento_g);
+        DigitalOutputDeactivate(placa->segmento_p);
         DigitalOutputDeactivate(placa->led_verde);
     }
 }
