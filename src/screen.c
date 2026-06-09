@@ -1,0 +1,154 @@
+/*********************************************************************************************************************
+Copyright 2026-2035, Laboratorio de Microprocesadores
+Facultad de Ciencias Exactas y Tecnologia
+Universidad Nacional de Tucuman
+http://www.microprocesadores.unt.edu.ar/
+
+Copyright 2026-2035, Gonzalo Chaves <gonzaloechvs@gmail.com>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+SPDX-License-Identifier: MIT
+*************************************************************************************************/
+
+/** @file screen.c
+ ** @brief Implementación de funciones para manejo de una pantalla multiplexada de siete segmentos
+ **/
+
+/* === Headers files inclusions ==================================================================================== */
+
+#include <string.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include "screen.h"
+
+
+/* === Header for C++ compatibility ================================================================================ */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/* === Macros definitions ====================================================================== */
+
+#ifndef DISPLAY_MAX_DIGITS
+#define DISPLAY_MAX_DIGITS 8
+#endif
+
+/* === Private data type declarations ========================================================== */
+
+struct display_s {
+    uint8_t digits;
+    uint8_t active_digit;
+    uint8_t flashing_from;
+    uint8_t flashing_to;
+    uint32_t flashing_frecuency;
+    uint32_t flashing_count;
+    uint8_t display_memory[DISPLAY_MAX_DIGITS];
+    struct display_driver_s driver[1];
+};
+
+/* === Private function declarations =========================================================== */
+
+static display_t DisplayAllocate(void);
+
+/* === Private variable definitions ============================================================ */
+
+static const uint8_t IMAGENES[] = {
+    [0] = SEGMENT_A | SEGMENT_B | SEGMENT_C | SEGMENT_D | SEGMENT_E | SEGMENT_F,               // 0
+    [1] = SEGMENT_B | SEGMENT_C,                                                               // 1
+    [2] = SEGMENT_A | SEGMENT_B | SEGMENT_D | SEGMENT_E | SEGMENT_G,                           // 2
+    [3] = SEGMENT_A | SEGMENT_B | SEGMENT_C | SEGMENT_D | SEGMENT_G,                           // 3
+    [4] = SEGMENT_B | SEGMENT_C | SEGMENT_F | SEGMENT_G,                                       // 4
+    [5] = SEGMENT_A | SEGMENT_C | SEGMENT_D | SEGMENT_F | SEGMENT_G,                           // 5
+    [6] = SEGMENT_A | SEGMENT_C | SEGMENT_D | SEGMENT_E | SEGMENT_F | SEGMENT_G,               // 6
+    [7] = SEGMENT_A | SEGMENT_B | SEGMENT_C,                                                   // 7
+    [8] = SEGMENT_A | SEGMENT_B | SEGMENT_C | SEGMENT_D | SEGMENT_E | SEGMENT_F |SEGMENT_G,    // 8
+    [9] = SEGMENT_A | SEGMENT_B |SEGMENT_C|SEGMENT_D|SEGMENT_F|SEGMENT_G                       // 9
+};
+
+/* === Public variable definition  ============================================================= */
+
+static const display_driver_t DRIVER = &(struct display_driver_s) {
+    .UpdateDigits = NULL,
+    .UpdateSegments = NULL
+};
+
+/* === Private function definitions ============================================================ */
+
+static display_t DisplayAllocate(void){
+    display_t display = malloc(sizeof(struct display_s));
+    if (display != NULL) {
+        *display->driver = *DRIVER; // Copia la estructura del driver
+    }
+    return display;
+}
+
+/* === Public function implementation ========================================================== */
+
+display_t DisplayCreate(uint8_t digits, display_driver_t driver){
+    display_t display = DisplayAllocate();
+    if (display) {
+        display->digits = digits;
+        display->active_digit = 0;
+        display->flashing_from = 0;
+        display->flashing_to = 0;
+        display->flashing_frecuency = 0;
+        display->flashing_count = 0;
+        memcpy(display->driver, driver, sizeof(struct display_driver_s)); // Copia la estructura del driver
+        memset(display->display_memory, 0, sizeof(display->display_memory)); // Inicializa la memoria de la pantalla
+        display->driver->UpdateSegments(0x00); // Apaga todos los dígitos
+    }
+
+    return display;
+}
+
+void DisplayWriteBCD(display_t display, uint8_t * number, uint8_t size){
+    // Escribe un número BCD en la memoria de la pantalla
+    memset(display->display_memory, 0, sizeof(display->display_memory)); // Limpia la memoria de la pantalla
+    for (uint8_t i = 0; i < size && i < display->digits; i++) {
+        display->display_memory[i] = IMAGENES[number[i] & 0x0F]; // Convierte el dígito BCD a segmentos
+    }
+}
+
+void DisplayRefresh(display_t display){
+    // Refresca un paso del barrido multiplexado
+    uint8_t segments;
+
+    display->driver->UpdateSegments(0x00); // Apaga todos los segmentos
+    display->active_digit = (display->active_digit + 1) % display->digits; // Avanza al siguiente dígito
+    segments = display->display_memory[display->active_digit]; // Obtiene los segmentos del dígito activo
+    display->driver->UpdateSegments(segments); // Actualiza los segmentos del dígito actual
+    display->driver->UpdateDigits(display->active_digit); // Activa el dígito actual
+}
+
+void DisplayFlashDigits(display_t display, uint8_t from, uint8_t to, uint16_t frecuency){
+    // Configura el parpadeo de un rango de dígitos
+
+}
+
+void DisplayToggleDots(display_t display, uint8_t from, uint8_t to){
+    // Conmuta el punto decimal de un rango de dígitos
+
+}
+
+/* === End of conditional blocks =================================================================================== */
+
+#ifdef __cplusplus
+}
+#endif
