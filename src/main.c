@@ -46,41 +46,9 @@ SPDX-License-Identifier: MIT
 
 /* === Private data type declarations ========================================================== */
 
-/**
- * @brief Enumeration with color sequence of RGB led
- */
-typedef enum rgb_color_e {
-    LED_RED_ON = 0,
-    LED_RED_OFF,
-    LED_GREEN_ON,
-    LED_GREEN_OFF,
-    LED_BLUE_ON,
-    LED_BLUE_OFF,
-} rgb_color_t;
-
 /* === Private variable declarations =========================================================== */
 
 /* === Private function declarations =========================================================== */
-
-/**
- * @brief Function to flash RGB led in sequence
- */
-static void FlashLed(board_t placa);
-
-/**
- * @brief Function to switch on and off a led with two keys
- */
-static void SwitchLed(board_t placa);
-
-/**
- * @brief Function to switch on and off a led with a single key
- */
-static void ToggleLed(board_t placa);
-
-/**
- * @brief Function to turn on a led while a key is pressed
- */
-static void TestLed(board_t placa);
 
 /* === Public variable definitions ============================================================= */
 
@@ -88,66 +56,57 @@ static void TestLed(board_t placa);
 
 /* === Private function implementation ========================================================= */
 
-static void FlashLed(board_t placa) {
-    static int divisor = 0;
-    static rgb_color_t state = LED_BLUE_OFF;
-
-    divisor++;
-    if (divisor == 5) {
-        divisor = 0;
-        state = (state + 1) % (LED_BLUE_OFF + 1);
-
-        switch (state) {
-        case LED_RED_ON:
-            DigitalOutputActivate(placa->led_rgb_rojo);
-            break;
-        case LED_GREEN_ON:
-            DigitalOutputActivate(placa->led_rgb_verde);
-            break;
-        case LED_BLUE_ON:
-            DigitalOutputActivate(placa->led_rgb_azul);
-            break;
-        default:
-            DigitalOutputDeactivate(placa->led_rgb_rojo);
-            DigitalOutputDeactivate(placa->led_rgb_verde);
-            DigitalOutputDeactivate(placa->led_rgb_azul);
-            break;
-        }
-    }
-}
-
-static void SwitchLed(board_t placa) {
-    if (DigitalInputHasActivated(placa->tecla_prender)) {
-        DigitalOutputActivate(placa->led_amarillo);
-    }
-    if (DigitalInputHasActivated(placa->tecla_apagar)) {
-        DigitalOutputDeactivate(placa->led_amarillo);
-    }
-}
-
-static void ToggleLed(board_t placa) {
-    if (DigitalInputHasActivated(placa->tecla_cambiar)) {
-        DigitalOutputToggle(placa->led_rojo);
-    }
-}
-
-static void TestLed(board_t placa) {
-    // if (DigitalInputGetState(placa->tecla_probar)) {
-    if ((DigitalInputGetState(placa->tecla_aceptar)||DigitalInputGetState(placa->tecla_cancelar))) {
-        DigitalOutputActivate(placa->led_verde);
-    } else {        
-        DigitalOutputDeactivate(placa->led_verde);
-    }
-}
-
 /* === Public function implementation ========================================================== */
 
 int main(void) {
     board_t placa = BoardCreate();
     uint8_t entrada[4] = {1,2,3,4};
+    uint16_t frecuencia = 0;
 
     DisplayWriteBCD(placa->pantalla, entrada, sizeof(entrada));
     while (true) {
+        if(DigitalInputHasActivated(placa->tecla_aceptar)){
+            if (frecuencia == 0) {
+            frecuencia = 4;
+            } else if(frecuencia == 4) {
+                frecuencia = 16;
+            } else if(frecuencia == 16) {
+                frecuencia = 64;
+            } else if(frecuencia == 64) {
+                frecuencia = 128;
+            } else {
+                frecuencia = 0;
+            }
+            DisplayFlashDigits(placa->pantalla, 0, 3, frecuencia);
+        }
+        
+        if(DigitalInputHasActivated(placa->tecla_cancelar)){
+            DisplayToggleDots(placa->pantalla, 0, 3);
+        }
+
+        if(DigitalInputHasActivated(placa->tecla_F4)){
+            // Cambia el digito 1 por su numero siguiente
+            entrada[0] = (entrada[0] + 1) % 10;
+            DisplayWriteBCD(placa->pantalla, entrada, sizeof(entrada));
+        }
+
+        if(DigitalInputHasActivated(placa->tecla_F3)){
+            // Cambia el digito 2 por su numero siguiente
+            entrada[1] = (entrada[1] + 1) % 10;
+            DisplayWriteBCD(placa->pantalla, entrada, sizeof(entrada));
+        }
+
+        if(DigitalInputHasActivated(placa->tecla_F2)){
+            // Cambia el digito 3 por su numero siguiente
+            entrada[2] = (entrada[2] + 1) % 10;
+            DisplayWriteBCD(placa->pantalla, entrada, sizeof(entrada));
+        }
+
+        if(DigitalInputHasActivated(placa->tecla_F1)){
+            // Cambia el digito 4 por su numero siguiente
+            entrada[3] = (entrada[3] + 1) % 10;
+            DisplayWriteBCD(placa->pantalla, entrada, sizeof(entrada));
+        }
 
         for(int index = 0; index < RETARDO_MS_DEFAULT; index++){
             for(int delay = 0; delay < CICLOS_POR_MS; delay++){
@@ -155,11 +114,6 @@ int main(void) {
             }
             DisplayRefresh(placa->pantalla);
         }
-
-        FlashLed(placa);
-        SwitchLed(placa);
-        ToggleLed(placa);
-        TestLed(placa);
     }
 
     return 0;
