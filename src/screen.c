@@ -105,7 +105,7 @@ display_t DisplayCreate(uint8_t digits, display_driver_t driver){
     display_t display = DisplayAllocate();
     if (display) {
         display->digits = digits;
-        display->active_digit = 0;
+        display->active_digit = digits - 1; // Inicia con el último dígito para que al refrescar comience desde el primero
         display->flashing_from = 0;
         display->flashing_to = 0;
         display->flashing_frecuency = 0;
@@ -119,10 +119,12 @@ display_t DisplayCreate(uint8_t digits, display_driver_t driver){
 }
 
 void DisplayWriteBCD(display_t display, uint8_t * number, uint8_t size){
-    // Escribe un número BCD en la memoria de la pantalla
-    memset(display->display_memory, 0, sizeof(display->display_memory)); // Limpia la memoria de la pantalla
+    // Escribe un número BCD en la memoria de la pantalla    
     for (uint8_t i = 0; i < size && i < display->digits; i++) {
-        display->display_memory[i] = IMAGENES[number[i] & 0x0F]; // Convierte el dígito BCD a segmentos
+
+        uint8_t estado_punto = display->display_memory[i] & SEGMENT_P;
+        
+        display->display_memory[i] = IMAGENES[number[i]] | estado_punto; 
     }
 }
 
@@ -132,19 +134,40 @@ void DisplayRefresh(display_t display){
 
     display->driver->UpdateSegments(0x00); // Apaga todos los segmentos
     display->active_digit = (display->active_digit + 1) % display->digits; // Avanza al siguiente dígito
+    
     segments = display->display_memory[display->active_digit]; // Obtiene los segmentos del dígito activo
+
+    if (display->flashing_frecuency > 0) {
+        // Incrementamos el contador 1 vez por ciclo completo de la pantalla
+        if (display->active_digit == 0) {
+            display->flashing_count = (display->flashing_count + 1) % display->flashing_frecuency;
+        }
+
+        // Si el dígito actual debe parpadear
+        if (display->active_digit >= display->flashing_from && display->active_digit <= display->flashing_to) {
+            // Mitad del ciclo encendido, mitad del ciclo apagado
+            if (display->flashing_count >= (display->flashing_frecuency / 2)) {
+                segments = 0x00; // Enmascaramos apagando todo el dígito temporalmente
+            }
+        }
+    }
     display->driver->UpdateSegments(segments); // Actualiza los segmentos del dígito actual
     display->driver->UpdateDigits(display->active_digit); // Activa el dígito actual
 }
 
 void DisplayFlashDigits(display_t display, uint8_t from, uint8_t to, uint16_t frecuency){
     // Configura el parpadeo de un rango de dígitos
-
+    display->flashing_from = from;
+    display->flashing_to = to;
+    display->flashing_frecuency = frecuency;
+    display->flashing_count = 0;
 }
 
 void DisplayToggleDots(display_t display, uint8_t from, uint8_t to){
     // Conmuta el punto decimal de un rango de dígitos
-
+    for (uint8_t i = from; i <= to && i < display->digits; i++) {
+        display->display_memory[i] ^= SEGMENT_P; // Conmuta el bit del punto decimal
+    }
 }
 
 /* === End of conditional blocks =================================================================================== */
