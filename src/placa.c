@@ -27,7 +27,10 @@ SPDX-License-Identifier: MIT
 *************************************************************************************************/
 
 /** @file placa.c
- ** @brief Implementación de funciones para manejo de la placa EDU-CIAA-NXP
+ ** @brief Implementación de la HAL para la placa EDU-CIAA-NXP y el Poncho.
+ **
+ ** Contiene las rutinas de inicialización de los multiplexores de pines (SCU), 
+ ** configuración de GPIOs y la instanciación de los objetos digitales y de pantalla.
  **/
 
 /* === Headers files inclusions ================================================================ */
@@ -103,19 +106,59 @@ SPDX-License-Identifier: MIT
 /* === Private data type declarations ========================================================== */
 
 /* === Private function declarations =========================================================== */
+/* === Private function declarations =========================================================== */
 
+/**
+ * @brief Inicializa los pines correspondientes a los ánodos/cátodos comunes de los dígitos.
+ *
+ * @param self Puntero a la estructura de control de la placa.
+ */
 static void DigitsInit(struct board_s * self);
 
+/**
+ * @brief Inicializa los pines correspondientes a los segmentos A-G y el punto decimal.
+ *
+ * @param self Puntero a la estructura de control de la placa.
+ */
 static void SegmentsInit(struct board_s * self);
 
+/**
+ * @brief Inicializa el pin correspondiente al zumbador (buzzer) del poncho.
+ *
+ * @param self Puntero a la estructura de control de la placa.
+ */
 static void BuzzerInit(struct board_s * self);
 
+/**
+ * @brief Inicializa los LEDs integrados en la placa base (RGB y monocromáticos).
+ *
+ * @param self Puntero a la estructura de control de la placa.
+ */
 static void LedsInit(struct board_s * self);
 
+/**
+ * @brief Inicializa las teclas de la placa base y los pulsadores del poncho.
+ *
+ * Configura los pines como entradas con resistencias de pull-up internas.
+ *
+ * @param self Puntero a la estructura de control de la placa.
+ */
 static void KeysInit(struct board_s * self);
 
+/**
+ * @brief Callback de bajo nivel para actualizar el patrón de segmentos encendidos en la pantalla.
+ *
+ * Apaga todos los segmentos si se recibe 0x00, o enciende los indicados por la máscara.
+ *
+ * @param segments Máscara de bits de los segmentos a encender.
+ */
 static void UpdateSegments(uint8_t segments);
 
+/**
+ * @brief Callback de bajo nivel para seleccionar y encender el dígito activo.
+ *
+ * @param digit Índice del dígito a activar (0 a 3).
+ */
 static void UpdateDigits(uint8_t digits);
 
 /* === Private variable definitions ============================================================ */

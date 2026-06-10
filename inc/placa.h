@@ -30,10 +30,12 @@ SPDX-License-Identifier: MIT
 #define PLACA_H_
 
 /** @file placa.h
- ** @brief Definición de tipos y funciones para el manejo integral de la placa EDU-CIAA-NXP.
+ ** @brief Definición de la capa de abstracción de hardware (HAL) para la placa y el poncho.
  **
  ** Este módulo agrupa y configura todas las entradas y salidas digitales
- ** disponibles en la placa (LEDS y teclas), proveyendo una interfaz única.
+ ** disponibles en la placa EDU-CIAA-NXP (LEDs y teclas) y en el poncho 
+ ** (pantalla de 7 segmentos, teclas adicionales y zumbador), proveyendo 
+ ** una interfaz unificada para la aplicación.
  **/
 
 /* === Headers files inclusions ==================================================================================== */

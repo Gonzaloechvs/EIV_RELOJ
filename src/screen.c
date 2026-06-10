@@ -52,23 +52,43 @@ extern "C" {
 
 /* === Private data type declarations ========================================================== */
 
+/**
+ * @brief Estructura interna de la pantalla multiplexada de siete segmentos.
+ *
+ * Almacena la configuración de hardware, el estado actual del barrido, los parámetros
+ * para el efecto de parpadeo (flashing) y la memoria de video BCD.
+ */
 struct display_s {
-    uint8_t digits;
-    uint8_t active_digit;
-    uint8_t flashing_from;
-    uint8_t flashing_to;
-    uint32_t flashing_frecuency;
-    uint32_t flashing_count;
-    uint8_t display_memory[DISPLAY_MAX_DIGITS];
-    struct display_driver_s driver[1];
+    uint8_t digits;                             /**< Cantidad total de dígitos de la pantalla */
+    uint8_t active_digit;                       /**< Índice del dígito actualmente encendido en el barrido */
+    uint8_t flashing_from;                      /**< Índice inicial del rango de dígitos que parpadean */
+    uint8_t flashing_to;                        /**< Índice final del rango de dígitos que parpadean */
+    uint32_t flashing_frecuency;                /**< Frecuencia de parpadeo (0 para desactivar) */
+    uint32_t flashing_count;                    /**< Contador interno para controlar el ciclo de parpadeo */
+    uint8_t display_memory[DISPLAY_MAX_DIGITS]; /**< Memoria de video con el estado de cada dígito */
+    struct display_driver_s driver[1];          /**< Copia local de los callbacks del hardware */
 };
 
 /* === Private function declarations =========================================================== */
 
+/**
+ * @brief Asigna memoria dinámica para una nueva instancia de pantalla.
+ *
+ * Inicializa la estructura de la pantalla copiando los punteros a las
+ * funciones de hardware por defecto.
+ *
+ * @return display_t Puntero a la nueva estructura, o NULL si no hay memoria disponible.
+ */
 static display_t DisplayAllocate(void);
 
 /* === Private variable definitions ============================================================ */
 
+/**
+ * @brief Tabla de conversión BCD a mapa de segmentos.
+ *
+ * Cada índice (0 al 9) contiene la máscara de bits correspondiente a los
+ * segmentos (A-G) que deben encenderse para representar dicho dígito.
+ */
 static const uint8_t IMAGENES[] = {
     [0] = SEGMENT_A | SEGMENT_B | SEGMENT_C | SEGMENT_D | SEGMENT_E | SEGMENT_F,               // 0
     [1] = SEGMENT_B | SEGMENT_C,                                                               // 1
@@ -84,6 +104,12 @@ static const uint8_t IMAGENES[] = {
 
 /* === Public variable definition  ============================================================= */
 
+/**
+ * @brief Controlador de hardware por defecto (vacío).
+ *
+ * Se utiliza para inicializar de forma segura la estructura de la pantalla
+ * evitando punteros a funciones nulas que puedan causar un hard fault (excepción de hardware).
+ */
 static const display_driver_t DRIVER = &(struct display_driver_s) {
     .UpdateDigits = NULL,
     .UpdateSegments = NULL

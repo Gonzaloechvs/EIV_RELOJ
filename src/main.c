@@ -25,7 +25,10 @@ SPDX-License-Identifier: MIT
 *************************************************************************************************/
 
 /** @file main.c
- ** @brief Punto de entrada de la aplicación y lógica de control de periféricos
+ ** @brief Punto de entrada de la aplicación.
+ **
+ ** Implementa la lógica de control y prueba para la pantalla multiplexada
+ ** de 7 segmentos y las teclas del poncho.
  **
  ** \addtogroup samples Samples
  ** \brief Samples applications with MUJU Framework
