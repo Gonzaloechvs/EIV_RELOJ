@@ -41,10 +41,14 @@ SPDX-License-Identifier: MIT
 
 struct clock_s {
     hora_t current_time;
+    unsigned int ticks_per_second;
+    unsigned int ticks_count;
     bool time_is_valid;
 };
 
 /* === Private function declarations =========================================================== */
+
+int SumaAcarreo(uint8_t *decena, uint8_t *unidad, uint8_t limite);
 
 /* === Private variable definitions ============================================================ */
 
@@ -52,14 +56,29 @@ struct clock_s {
 
 /* === Private function definitions ============================================================ */
 
+int SumaAcarreo(uint8_t *decena, uint8_t *unidad, uint8_t limite){
+    uint8_t cuenta = (*decena) * 10 + (*unidad);
+    cuenta++;
+    int acarreo = 0; 
+    if (cuenta==limite){
+        cuenta=0;
+        acarreo++;
+    }
+    *decena = cuenta / 10;
+    *unidad = cuenta % 10;
+    return acarreo;
+}
+
 /* === Public function implementation ========================================================== */
 
 clock_t RelojCreate(unsigned int ticks_per_second, void * alarm_handler){
     static struct clock_s instance;
-
     clock_t self = &instance;
+
     self->time_is_valid = false;
     memset(self->current_time, 0, sizeof(hora_t));
+    self->ticks_count = 0;
+    self->ticks_per_second = ticks_per_second;
 
     return self;
 }
@@ -69,10 +88,33 @@ bool RelojGetCurrentTime(clock_t self, hora_t current_time){
     return self->time_is_valid;
 }
 
-bool RelojSetupCurrentTime(clock_t self, hora_t current_time){
+bool RelojSetupCurrentTime(clock_t self, const hora_t current_time){
     memcpy(self->current_time, current_time, sizeof(hora_t));
     self->time_is_valid = true;
     return true;
+}
+
+void RelojNewTick(clock_t self){
+    self->ticks_count++;
+    if((self->ticks_count % self->ticks_per_second) == 0){
+
+        /* segundos */
+        int acarreo_minutos = SumaAcarreo(&self->current_time[4], &self->current_time[5], 60);
+
+        /* minutos */
+        if(acarreo_minutos > 0) {
+            int acarreo_horas = SumaAcarreo(&self->current_time[2], &self->current_time[3], 60);
+            acarreo_minutos -= 1;
+
+            /* horas */
+            if(acarreo_horas > 0) {
+                (void)SumaAcarreo(&self->current_time[0], &self->current_time[1], 24);
+                acarreo_horas -= 1;
+                self->ticks_count=0;
+
+            }
+        }
+    }
 }
 
 /* === End of documentation ==================================================================== */
