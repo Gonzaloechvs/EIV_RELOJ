@@ -106,6 +106,7 @@ SPDX-License-Identifier: MIT
 /* === Private data type declarations ========================================================== */
 
 /* === Private function declarations =========================================================== */
+
 /* === Private function declarations =========================================================== */
 
 /**
@@ -162,6 +163,14 @@ static void UpdateSegments(uint8_t segments);
 static void UpdateDigits(uint8_t digits);
 
 /* === Private variable definitions ============================================================ */
+
+/**
+ * @brief Instancia local y estaica del controlador de la pantalla.
+*/
+static const struct display_driver_s DISPLAY_DRIVER = {
+    .UpdateSegments = UpdateSegments,
+    .UpdateDigits = UpdateDigits
+};
 
 /* === Public variable definition  ============================================================= */
 
@@ -279,20 +288,22 @@ static void KeysInit(struct board_s * self) {
 }
 
 static void UpdateSegments(uint8_t segments) {
-    // Actualiza el estado de los segmentos del display
-    if (segments == 0x00){
-        Chip_GPIO_ClearValue(LPC_GPIO_PORT, DIGITS_GPIO, DIGITS_MASK); // Apaga todos los segmentos
-        Chip_GPIO_ClearValue(LPC_GPIO_PORT, SEGMENTS_GPIO, SEGMENTS_MASK); // Apaga todos los segmentos
-        Chip_GPIO_SetPinState(LPC_GPIO_PORT, SEGMENT_P_GPIO, SEGMENT_P_BIT, false);
-    } else {
-        Chip_GPIO_SetValue(LPC_GPIO_PORT, SEGMENTS_GPIO, segments & SEGMENTS_MASK); // Enciende los segmentos indicados por el valor
-        Chip_GPIO_SetPinState(LPC_GPIO_PORT, SEGMENT_P_GPIO, SEGMENT_P_BIT, segments & SEGMENT_P);
-    }
+    // 1. Apagamos todos los segmentos primero
+    Chip_GPIO_ClearValue(LPC_GPIO_PORT, SEGMENTS_GPIO, SEGMENTS_MASK);
+
+    // 2. Encendemos únicamente los indicados por la máscara
+    Chip_GPIO_SetValue(LPC_GPIO_PORT, SEGMENTS_GPIO, segments & SEGMENTS_MASK);
+
+    // 3. Manejamos el estado del punto decimal
+    Chip_GPIO_SetPinState(LPC_GPIO_PORT, SEGMENT_P_GPIO, SEGMENT_P_BIT, (segments & SEGMENT_P) != 0);
 }
 
 static void UpdateDigits(uint8_t digit) {
-    // Actualiza el estado de los dígitos del display
-    Chip_GPIO_SetValue(LPC_GPIO_PORT, DIGITS_GPIO, (1 << (3 - digit)) & DIGITS_MASK); // Enciende los dígitos indicados por el valor
+    // 1. Apagamos todos los dígitos primero
+    Chip_GPIO_ClearValue(LPC_GPIO_PORT, DIGITS_GPIO, DIGITS_MASK);
+
+    // 2. Encendemos únicamente el dígito activo
+    Chip_GPIO_SetValue(LPC_GPIO_PORT, DIGITS_GPIO, (1 << (3 - digit)) & DIGITS_MASK);
 }
 
 /* === Public function implementation ========================================================== */
@@ -311,12 +322,9 @@ board_t BoardCreate(void) {
     KeysInit(&self);
 
     BuzzerInit(&self);
-    
-    self.pantalla = DisplayCreate(4, &(struct display_driver_s){
-                                        .UpdateSegments = UpdateSegments,
-                                        .UpdateDigits = UpdateDigits
-    });
-        
+
+    self.pantalla = DisplayCreate(4, &DISPLAY_DRIVER);
+
     return &self;
 }
 
