@@ -1,15 +1,18 @@
-// ‣ Fijar la hora de la alarma y consultarla.
 // ‣ Fijar la alarma y avanzar el reloj para que suene.
 // ‣ Fijar la alarma, deshabilitarla y avanzar el reloj para no
 // suene.
 // ‣ Hacer sonar la alarma y posponerla.
 // ‣ Hacer sonar la alarma y cancelarla hasta el otro dia..
+// ‣ Probar que el create no devuelva algo nulo
+// ‣ Probar que no se pone en hora si el argumento es nulo
+// ‣ Poner alarma, posponerla, cancelara y ver q suene al otro dia a la misma hora del comienzo
 
 #include "unity.h"
 #include "reloj.h"
 
 static const hora_t HORA_DEFAULT = {0, 0, 0, 0, 0, 0};
 static const hora_t HORA_INICIAL = {1, 2, 3, 4, 5, 6};
+static const hora_t HORA_ALARMA = {0, 5, 0, 0, 0, 0};
 
 #define TICK_PER_SECOND 3
 #define ONE_SECOND TICK_PER_SECOND
@@ -142,4 +145,25 @@ void test_avanza_un_dia(void) {
     SimulateClockTicks(reloj, ONE_DAY);
     RelojGetCurrentTime(reloj, hora_actual);
     TEST_ASSERT_EQUAL_UINT8_ARRAY(HORA_INICIAL,hora_actual, 6);
+}
+
+// ‣ Fijar la hora de la alarma y consultarla (requiere reloj en hora).
+void test_consulta_alarma(void) {
+    clock_t reloj;
+    hora_t alarma_ajustada;
+
+    reloj = RelojCreate(TICK_PER_SECOND, NULL);
+    TEST_ASSERT_TRUE(RelojSetupCurrentTime(reloj, HORA_INICIAL));
+    TEST_ASSERT_TRUE(RelojSetupAlarm(reloj, HORA_ALARMA));
+    TEST_ASSERT_TRUE(RelojGetAlarm(reloj, alarma_ajustada));
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(HORA_ALARMA, alarma_ajustada, 6);
+}
+
+// ‣ La alarma no debe poder ajustarse si el reloj no está en hora.
+void test_alarm_rechazada_si_reloj_invalido(void) {
+    clock_t reloj;
+    static const hora_t HORA_ALARMA = {0, 5, 0, 0, 0, 0};
+
+    reloj = RelojCreate(TICK_PER_SECOND, NULL);
+    TEST_ASSERT_FALSE(RelojSetupAlarm(reloj, HORA_ALARMA));
 }

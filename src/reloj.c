@@ -47,6 +47,7 @@ SPDX-License-Identifier: MIT
 
 struct clock_s {
     uint32_t current_time;
+    uint32_t alarm;
     unsigned int ticks_per_second;
     unsigned int ticks_count;
     bool time_is_valid;
@@ -68,7 +69,7 @@ static uint32_t TimetoSeconds(const hora_t time){
     uint32_t horas_en_segundos = (time[0] * UNITS_PER_TEN + time[1]) * MINUTES_PER_HOUR * SECONDS_PER_MINUTE;
     uint32_t minutos_en_segundos = (time[2] * UNITS_PER_TEN + time[3]) * SECONDS_PER_MINUTE;
     uint32_t segundos = (time[4] * UNITS_PER_TEN + time[5]);
-    
+
     return horas_en_segundos + minutos_en_segundos + segundos;
 }
 
@@ -90,7 +91,6 @@ static void SecondstoTime(uint32_t seconds, hora_t time){
 clock_t RelojCreate(unsigned int ticks_per_second, void * alarm_handler){
     static struct clock_s instance;
     clock_t self = &instance;
-
     self->time_is_valid = false;
     self->current_time = 0;
     self->ticks_count = 0;
@@ -113,14 +113,26 @@ bool RelojSetupCurrentTime(clock_t self, const hora_t current_time){
 void RelojNewTick(clock_t self){
     self->ticks_count++;
     if(self->ticks_count < self->ticks_per_second){
-        return;    
+        return;
     }
     self->ticks_count=0;
     self->current_time++;
     if(self->current_time == SECONDS_PER_DAY){
         self->current_time = 0;
-
     }
+}
+
+bool RelojSetupAlarm(clock_t self, const hora_t alarm){
+    if(self->time_is_valid){
+        self->alarm = TimetoSeconds(alarm);
+        return true;
+    }
+    return false;
+}
+
+bool RelojGetAlarm(clock_t self, hora_t alarm){
+    SecondstoTime(self->alarm, alarm);
+    return true;
 }
 
 /* === End of documentation ==================================================================== */
