@@ -1,4 +1,3 @@
-// ‣ Fijar la alarma y avanzar el reloj para que suene.
 // ‣ Fijar la alarma, deshabilitarla y avanzar el reloj para no
 // suene.
 // ‣ Hacer sonar la alarma y posponerla.
@@ -13,6 +12,14 @@
 static const hora_t HORA_DEFAULT = {0, 0, 0, 0, 0, 0};
 static const hora_t HORA_INICIAL = {1, 2, 3, 4, 5, 6};
 static const hora_t HORA_ALARMA = {0, 5, 0, 0, 0, 0};
+
+// Variable global o estática para capturar si el handler fue llamado
+static bool alarm_triggered = false;
+
+// Función handler que será llamada cuando suene la alarma
+static void alarm_callback(void) {
+    alarm_triggered = true;
+}
 
 #define TICK_PER_SECOND 3
 #define ONE_SECOND TICK_PER_SECOND
@@ -162,8 +169,20 @@ void test_consulta_alarma(void) {
 // ‣ La alarma no debe poder ajustarse si el reloj no está en hora.
 void test_alarm_rechazada_si_reloj_invalido(void) {
     clock_t reloj;
-    static const hora_t HORA_ALARMA = {0, 5, 0, 0, 0, 0};
 
     reloj = RelojCreate(TICK_PER_SECOND, NULL);
     TEST_ASSERT_FALSE(RelojSetupAlarm(reloj, HORA_ALARMA));
+}
+
+// ‣ Fijar la alarma y avanzar el reloj para que suene.
+void test_alarm_suena_cuando_se_alcanza_hora(void) {
+    clock_t reloj;
+    alarm_triggered = false;
+    
+    reloj = RelojCreate(TICK_PER_SECOND, alarm_callback);
+    (void)RelojSetupCurrentTime(reloj, HORA_DEFAULT);
+    TEST_ASSERT_TRUE(RelojSetupAlarm(reloj, HORA_ALARMA));
+    
+    SimulateClockTicks(reloj, 5 * ONE_HOUR);
+    TEST_ASSERT_TRUE(alarm_triggered);
 }
