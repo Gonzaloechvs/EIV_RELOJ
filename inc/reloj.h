@@ -68,6 +68,8 @@ bool RelojSetupAlarm(clock_t clock, const hora_t alarm);
 
 bool RelojGetAlarm(clock_t clock, hora_t alarm);
 
+void ToggleAlarm(clock_t clock);
+
 /* === Public function declarations ================================================================================ */
 
 /* === End of conditional blocks =================================================================================== */

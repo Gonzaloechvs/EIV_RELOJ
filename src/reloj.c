@@ -143,4 +143,8 @@ bool RelojGetAlarm(clock_t self, hora_t alarm){
     return self->alarm_enabled;
 }
 
+void ToggleAlarm(clock_t self){
+    self->alarm_enabled = !self->alarm_enabled;
+}
+
 /* === End of documentation ==================================================================== */
