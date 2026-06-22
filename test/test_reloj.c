@@ -1,4 +1,3 @@
-// ‣ Hacer sonar la alarma y posponerla.
 // ‣ Hacer sonar la alarma y cancelarla hasta el otro dia..
 // ‣ Probar que el create no devuelva algo nulo
 // ‣ Probar que no se pone en hora si el argumento es nulo
@@ -18,6 +17,7 @@ static bool alarm_triggered = false;
 static void alarm_callback(void) {
     alarm_triggered = true;
 }
+
 
 #define TICK_PER_SECOND 3
 #define ONE_SECOND TICK_PER_SECOND
@@ -198,4 +198,23 @@ void test_apagar_la_alarma(void) {
     TEST_ASSERT_FALSE(RelojGetAlarm(reloj, alarma_ajustada));
     SimulateClockTicks(reloj, 5 * ONE_HOUR);
     TEST_ASSERT_FALSE(alarm_triggered);
+}
+
+// ‣ Hacer sonar la alarma y posponerla.
+void test_posponer_la_alarma(void) {
+    clock_t reloj;
+    alarm_triggered = false;
+
+    reloj = RelojCreate(TICK_PER_SECOND, alarm_callback);
+    TEST_ASSERT_TRUE(RelojSetupCurrentTime(reloj, HORA_DEFAULT));
+    TEST_ASSERT_TRUE(RelojSetupAlarm(reloj, HORA_ALARMA));
+
+    SimulateClockTicks(reloj, 5 * ONE_HOUR);   // llega la primera alarma
+    TEST_ASSERT_TRUE(alarm_triggered);
+
+    alarm_triggered = false;
+    TEST_ASSERT_TRUE(RelojSnoozeAlarm(reloj, 5 * ONE_MINUTE/TICK_PER_SECOND)); // posponer 5 minutos
+
+    SimulateClockTicks(reloj, 5 * ONE_MINUTE);  // pasan 5 minutos
+    TEST_ASSERT_TRUE(alarm_triggered);           // ahora debe sonar de nuevo
 }

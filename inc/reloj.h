@@ -70,6 +70,8 @@ bool RelojGetAlarm(clock_t clock, hora_t alarm);
 
 void ToggleAlarm(clock_t clock);
 
+bool RelojSnoozeAlarm(clock_t clock, uint32_t snooze_time);
+
 /* === Public function declarations ================================================================================ */
 
 /* === End of conditional blocks =================================================================================== */

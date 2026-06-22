@@ -147,4 +147,10 @@ void ToggleAlarm(clock_t self){
     self->alarm_enabled = !self->alarm_enabled;
 }
 
+bool RelojSnoozeAlarm(clock_t self, uint32_t snooze_time){
+    self->alarm = self->alarm + snooze_time;
+    return true;
+}
+
+
 /* === End of documentation ==================================================================== */
