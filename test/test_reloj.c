@@ -1,4 +1,3 @@
-// ‣ Hacer sonar la alarma y cancelarla hasta el otro dia..
 // ‣ Probar que el create no devuelva algo nulo
 // ‣ Probar que no se pone en hora si el argumento es nulo
 // ‣ Poner alarma, posponerla, cancelara y ver q suene al otro dia a la misma hora del comienzo
@@ -217,4 +216,19 @@ void test_posponer_la_alarma(void) {
 
     SimulateClockTicks(reloj, 5 * ONE_MINUTE);  // pasan 5 minutos
     TEST_ASSERT_TRUE(alarm_triggered);           // ahora debe sonar de nuevo
+}
+
+// ‣ Hacer sonar la alarma y cancelarla hasta el otro dia.
+void test_cancelar_la_alarma(void) {
+    clock_t reloj;
+    alarm_triggered = false;
+    
+    reloj = RelojCreate(TICK_PER_SECOND, alarm_callback);
+    (void)RelojSetupCurrentTime(reloj, HORA_DEFAULT);
+    (void)RelojSetupAlarm(reloj, HORA_ALARMA);
+    SimulateClockTicks(reloj, 5 * ONE_HOUR);   // llega la primera alarma
+    TEST_ASSERT_TRUE(alarm_triggered);
+    alarm_triggered = false;
+    SimulateClockTicks(reloj, ONE_DAY);
+    TEST_ASSERT_TRUE(alarm_triggered);
 }
