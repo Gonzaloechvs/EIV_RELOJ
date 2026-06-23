@@ -110,6 +110,10 @@ bool RelojGetCurrentTime(clock_t self, hora_t current_time){
 }
 
 bool RelojSetupCurrentTime(clock_t self, const hora_t current_time){
+    if (current_time == NULL) {
+        return false;
+    }
+    
     self->current_time = TimetoSeconds(current_time);
     self->time_is_valid = true;
     return true;

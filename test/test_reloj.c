@@ -1,5 +1,3 @@
-// ‣ Probar que el create no devuelva algo nulo
-// ‣ Probar que no se pone en hora si el argumento es nulo
 
 #include "unity.h"
 #include "reloj.h"
@@ -33,11 +31,21 @@ void SimulateClockTicks(clock_t reloj, unsigned int ticks) {
     }
 }
 
+// ‣ Probar que el create no devuelva algo nulo
+void test_reloj_creacion_exitosa(void) {
+    clock_t reloj;
+    
+    reloj = RelojCreate(1, NULL);
+    
+    // Verificamos que el puntero devuelto exista y no sea NULL
+    TEST_ASSERT_NOT_NULL(reloj);
+}
+
 // ‣ Al inicializar el reloj está en 00:00 y con hora invalida.
 void test_reloj_inicia_invalido(void) {
     clock_t reloj;
     hora_t hora_actual = {1, 2, 3, 4, 5, 6};
-
+    
     reloj = RelojCreate(1, NULL);
     // La funcion devuelve FALSE porque la hora es invalida
     TEST_ASSERT_FALSE(RelojGetCurrentTime(reloj, hora_actual));
@@ -54,6 +62,20 @@ void test_reloj_ajusta_hora(void) {
     // La funcion devuelve TRUE porque la hora es válida
     TEST_ASSERT_TRUE(RelojGetCurrentTime(reloj, hora_actual));
     TEST_ASSERT_EQUAL_UINT8_ARRAY(HORA_INICIAL, hora_actual, 6);
+}
+
+// ‣ Probar que no se pone en hora si el argumento es nulo
+void test_reloj_ignora_hora_nula(void) {
+    clock_t reloj;
+    hora_t hora_actual;
+
+    reloj = RelojCreate(TICK_PER_SECOND, NULL);
+
+    // Intentamos configurar la hora pasándole NULL como argumento
+    TEST_ASSERT_FALSE(RelojSetupCurrentTime(reloj, NULL));
+
+    // Verificamos que el reloj protegió su estado y sigue siendo inválido
+    TEST_ASSERT_FALSE(RelojGetCurrentTime(reloj, hora_actual));
 }
 
 // ‣ Después de n ciclos de reloj la hora avanza un segundo, diez
