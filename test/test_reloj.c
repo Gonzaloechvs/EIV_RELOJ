@@ -1,6 +1,5 @@
 // ‣ Probar que el create no devuelva algo nulo
 // ‣ Probar que no se pone en hora si el argumento es nulo
-// ‣ Poner alarma, posponerla, cancelara y ver q suene al otro dia a la misma hora del comienzo
 
 #include "unity.h"
 #include "reloj.h"
@@ -205,14 +204,14 @@ void test_posponer_la_alarma(void) {
     alarm_triggered = false;
 
     reloj = RelojCreate(TICK_PER_SECOND, alarm_callback);
-    TEST_ASSERT_TRUE(RelojSetupCurrentTime(reloj, HORA_DEFAULT));
-    TEST_ASSERT_TRUE(RelojSetupAlarm(reloj, HORA_ALARMA));
+    (void)RelojSetupCurrentTime(reloj, HORA_DEFAULT);
+    (void)RelojSetupAlarm(reloj, HORA_ALARMA);
 
     SimulateClockTicks(reloj, 5 * ONE_HOUR);   // llega la primera alarma
     TEST_ASSERT_TRUE(alarm_triggered);
 
     alarm_triggered = false;
-    TEST_ASSERT_TRUE(RelojSnoozeAlarm(reloj, 5 * ONE_MINUTE/TICK_PER_SECOND)); // posponer 5 minutos
+    TEST_ASSERT_TRUE(RelojSnoozeAlarm(reloj, 5 * 60)); // posponer 5 minutos
 
     SimulateClockTicks(reloj, 5 * ONE_MINUTE);  // pasan 5 minutos
     TEST_ASSERT_TRUE(alarm_triggered);           // ahora debe sonar de nuevo
@@ -231,4 +230,32 @@ void test_cancelar_la_alarma(void) {
     alarm_triggered = false;
     SimulateClockTicks(reloj, ONE_DAY);
     TEST_ASSERT_TRUE(alarm_triggered);
+}
+
+// ‣ Poner alarma, posponerla, cancelara y ver q suene al otro dia a la misma hora del comienzo
+void test_posponer_y_cancelar_alarma(void) {
+    clock_t reloj;
+    alarm_triggered = false;
+
+    reloj = RelojCreate(TICK_PER_SECOND, alarm_callback);
+    (void)RelojSetupCurrentTime(reloj, HORA_DEFAULT);
+    (void)RelojSetupAlarm(reloj, HORA_ALARMA);
+
+    SimulateClockTicks(reloj, 5 * ONE_HOUR);   // primera alarma
+    TEST_ASSERT_TRUE(alarm_triggered);
+
+    alarm_triggered = false;
+    TEST_ASSERT_TRUE(RelojSnoozeAlarm(reloj, 5 * 60)); // posponer 5 minutos
+
+    SimulateClockTicks(reloj, 5 * ONE_MINUTE);  // pasan 5 minutos
+    TEST_ASSERT_TRUE(alarm_triggered);          // suena de nuevo por el snooze
+
+    RelojCancelAlarm(reloj);    
+    alarm_triggered = false;
+
+    SimulateClockTicks(reloj, ONE_DAY - (5 * ONE_MINUTE) - ONE_SECOND);
+    TEST_ASSERT_FALSE(alarm_triggered);
+
+    SimulateClockTicks(reloj, ONE_SECOND);    
+    TEST_ASSERT_TRUE(alarm_triggered);  
 }

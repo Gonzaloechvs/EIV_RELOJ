@@ -39,7 +39,7 @@ SPDX-License-Identifier: MIT
 
 #define UNITS_PER_TEN       10U
 #define SECONDS_PER_MINUTE  60U
-#define MINUTES_PER_HOUR     60U
+#define MINUTES_PER_HOUR    60U
 #define HOURS_PER_DAY       24U
 #define SECONDS_PER_DAY     (SECONDS_PER_MINUTE * MINUTES_PER_HOUR * HOURS_PER_DAY)
 
@@ -48,6 +48,7 @@ SPDX-License-Identifier: MIT
 struct clock_s {
     uint32_t current_time;
     uint32_t alarm;
+    uint32_t alarm_origin;
     unsigned int ticks_per_second;
     unsigned int ticks_count;
     bool time_is_valid;
@@ -133,6 +134,7 @@ void RelojNewTick(clock_t self){
 bool RelojSetupAlarm(clock_t self, const hora_t alarm){
     if(self->time_is_valid){
         self->alarm = TimetoSeconds(alarm);
+        self->alarm_origin = self->alarm;
         self->alarm_enabled = true;
     }
     return self->alarm_enabled;
@@ -148,9 +150,12 @@ void ToggleAlarm(clock_t self){
 }
 
 bool RelojSnoozeAlarm(clock_t self, uint32_t snooze_time){
-    self->alarm = self->alarm + snooze_time;
+    self->alarm = (self->alarm + snooze_time) % SECONDS_PER_DAY;
     return true;
 }
 
+void RelojCancelAlarm(clock_t self){
+    self->alarm = self->alarm_origin;
+}
 
 /* === End of documentation ==================================================================== */

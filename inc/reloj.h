@@ -72,6 +72,8 @@ void ToggleAlarm(clock_t clock);
 
 bool RelojSnoozeAlarm(clock_t clock, uint32_t snooze_time);
 
+void RelojCancelAlarm(clock_t self);
+
 /* === Public function declarations ================================================================================ */
 
 /* === End of conditional blocks =================================================================================== */
