@@ -281,3 +281,45 @@ void test_posponer_y_cancelar_alarma(void) {
     SimulateClockTicks(reloj, ONE_SECOND);    
     TEST_ASSERT_TRUE(alarm_triggered);  
 }
+
+// ‣ Al intentar ajustar una hora con valores inválidos, el reloj la rechaza.
+void test_rechazar_valores_invalidos(void) {
+    clock_t reloj;
+    
+    // Diferentes casos de error que podrían llegar desde el teclado
+    hora_t hora_invalida_horas = {2, 4, 0, 0, 0, 0};   // 24:00:00 (Falla límite de horas)
+    hora_t hora_invalida_minutos = {1, 2, 6, 0, 0, 0}; // 12:60:00 (Falla límite de minutos)
+    hora_t hora_invalida_segundos = {1, 2, 3, 0, 6, 0};// 12:30:60 (Falla límite de segundos)
+    hora_t hora_invalida_bcd = {1, 2, 0, 10, 0, 0};    // 12:0A:00 (Falla por valor BCD > 9)
+    
+    reloj = RelojCreate(TICK_PER_SECOND, NULL);
+    
+    // Verificamos que Setup devuelva FALSE para cada una
+    TEST_ASSERT_FALSE(RelojSetupCurrentTime(reloj, hora_invalida_horas));
+    TEST_ASSERT_FALSE(RelojSetupCurrentTime(reloj, hora_invalida_minutos));
+    TEST_ASSERT_FALSE(RelojSetupCurrentTime(reloj, hora_invalida_segundos));
+    TEST_ASSERT_FALSE(RelojSetupCurrentTime(reloj, hora_invalida_bcd));
+    
+    // El reloj debería seguir en su estado original (inválido)
+    hora_t hora_actual;
+    TEST_ASSERT_FALSE(RelojGetCurrentTime(reloj, hora_actual));
+}
+
+// ‣ Si el reloj ya está en hora y se intenta poner una hora inválida, mantiene la hora previa.
+// Similar al anterior pero vemos si mantiene la hora anterior no solo el estado anterior.
+void test_mantener_hora_si_ajuste_es_invalido(void) {
+    clock_t reloj;
+    hora_t hora_actual;
+    hora_t hora_basura = {2, 5, 0, 0, 0, 0};
+    
+    reloj = RelojCreate(TICK_PER_SECOND, NULL);
+    
+    // Lo configuramos con una hora válida
+    TEST_ASSERT_TRUE(RelojSetupCurrentTime(reloj, HORA_INICIAL)); 
+    
+    // Intentamos pisarla con basura y nos aseguramos que de FALSE
+    TEST_ASSERT_FALSE(RelojSetupCurrentTime(reloj, hora_basura));
+    
+    TEST_ASSERT_TRUE(RelojGetCurrentTime(reloj, hora_actual));
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(HORA_INICIAL, hora_actual, 6);
+}

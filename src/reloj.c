@@ -62,6 +62,8 @@ static uint32_t TimetoSeconds(const hora_t time);
 
 static void SecondstoTime(uint32_t seconds, hora_t time);
 
+static bool es_hora_valida(const hora_t time);
+
 /* === Private variable definitions ============================================================ */
 
 /* === Public variable definition  ============================================================= */
@@ -89,6 +91,31 @@ static void SecondstoTime(uint32_t seconds, hora_t time){
     time[5] = s % UNITS_PER_TEN;
 }
 
+static bool es_hora_valida(const hora_t time) {
+    for (int i = 0; i < 6; i++) {
+        if (time[i] > 9) {
+            return false;
+        }
+    }
+
+    if (time[0] > 2) {
+        return false;
+    }
+    if ((time[0] == 2) && (time[1] > 3)) {
+        return false;
+    }
+
+    if (time[2] > 5) {
+        return false;
+    }
+
+    if (time[4] > 5) {
+        return false;
+    }
+
+    return true; // Si sobrevivió a todo, la hora es impecable
+}
+
 /* === Public function implementation ========================================================== */
 
 clock_t RelojCreate(unsigned int ticks_per_second, void * alarm_handler){
@@ -113,7 +140,11 @@ bool RelojSetupCurrentTime(clock_t self, const hora_t current_time){
     if (current_time == NULL) {
         return false;
     }
-    
+
+    if (!es_hora_valida(current_time)) {
+        return false;
+    }
+
     self->current_time = TimetoSeconds(current_time);
     self->time_is_valid = true;
     return true;
