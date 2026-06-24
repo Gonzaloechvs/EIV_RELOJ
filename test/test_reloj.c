@@ -1,3 +1,7 @@
+/**
+ * @file test_reloj.c
+ * @brief Casos de prueba unitarios para el módulo de reloj utilizando Unity.
+ */
 
 #include "unity.h"
 #include "reloj.h"
@@ -6,10 +10,11 @@ static const hora_t HORA_DEFAULT = {0, 0, 0, 0, 0, 0};
 static const hora_t HORA_INICIAL = {1, 2, 3, 4, 5, 6};
 static const hora_t HORA_ALARMA = {0, 5, 0, 0, 0, 0};
 
-// Variable global o estática para capturar si el handler fue llamado
+/** @brief Variable estática para capturar si el handler de alarma fue llamado. */
 static bool alarm_triggered = false;
 
-// Función handler que será llamada cuando suene la alarma
+/** * @brief Función callback que será llamada cuando suene la alarma.
+ */
 static void alarm_callback(void) {
     alarm_triggered = true;
 }
@@ -24,14 +29,20 @@ static void alarm_callback(void) {
 #define TEN_HOURS (10 * ONE_HOUR)
 #define ONE_DAY (24 * ONE_HOUR)
 
-
+/**
+ * @brief Simula múltiples llamadas a RelojNewTick.
+ * @param reloj Instancia del reloj a simular.
+ * @param ticks Cantidad de ticks a avanzar.
+ */
 void SimulateClockTicks(clock_t reloj, unsigned int ticks) {
     for (int i = 0; i < ticks; i++) {
         RelojNewTick(reloj);
     }
 }
 
-// ‣ Probar que el create no devuelva algo nulo
+/**
+ * @brief Prueba que la creación del reloj no devuelva un puntero nulo.
+ */
 void test_reloj_creacion_exitosa(void) {
     clock_t reloj;
     
@@ -41,7 +52,9 @@ void test_reloj_creacion_exitosa(void) {
     TEST_ASSERT_NOT_NULL(reloj);
 }
 
-// ‣ Al inicializar el reloj está en 00:00 y con hora invalida.
+/**
+ * @brief Verifica que al inicializar, el reloj está en 00:00:00 y su hora es inválida.
+ */
 void test_reloj_inicia_invalido(void) {
     clock_t reloj;
     hora_t hora_actual = {1, 2, 3, 4, 5, 6};
@@ -52,7 +65,9 @@ void test_reloj_inicia_invalido(void) {
     TEST_ASSERT_EQUAL_UINT8_ARRAY(HORA_DEFAULT, hora_actual, 6);
 }
 
-// ‣ Al ajustar la hora el reloj queda en hora y es válida.
+/**
+ * @brief Comprueba que al ajustar la hora, el reloj queda en hora y pasa a ser válida.
+ */
 void test_reloj_ajusta_hora(void) {
     clock_t reloj;
     hora_t hora_actual;
@@ -64,7 +79,9 @@ void test_reloj_ajusta_hora(void) {
     TEST_ASSERT_EQUAL_UINT8_ARRAY(HORA_INICIAL, hora_actual, 6);
 }
 
-// ‣ Probar que no se pone en hora si el argumento es nulo
+/**
+ * @brief Asegura que la función rechaza punteros nulos sin alterar el estado.
+ */
 void test_reloj_ignora_hora_nula(void) {
     clock_t reloj;
     hora_t hora_actual;
@@ -82,7 +99,9 @@ void test_reloj_ignora_hora_nula(void) {
 // segundos, un minutos, diez minutos, una hora, diez horas y
 // un día completo.
 
-// ‣ Después de n ciclos de reloj la hora avanza un segundo
+/**
+ * @brief Verifica el correcto avance de 1 segundo tras N ticks.
+ */
 void test_avanza_un_segundo(void) {
     clock_t reloj;
     hora_t hora_actual;
@@ -95,7 +114,9 @@ void test_avanza_un_segundo(void) {
     TEST_ASSERT_EQUAL_UINT8_ARRAY(HORA_ESPERADA, hora_actual, 6);
 }
 
-// ‣ Después de n ciclos de reloj la hora avanza diez segundos
+/**
+ * @brief Verifica el correcto avance tras acumular 10 segundos.
+ */
 void test_avanza_diez_segundos(void) {
     clock_t reloj;
     hora_t hora_actual;
@@ -108,7 +129,9 @@ void test_avanza_diez_segundos(void) {
     TEST_ASSERT_EQUAL_UINT8_ARRAY(HORA_ESPERADA, hora_actual, 6);
 }
 
-// ‣ Después de n ciclos de reloj la hora avanza un minuto
+/**
+ * @brief Verifica el correcto avance de minutos (salto del segundero).
+ */
 void test_avanza_un_minuto(void) {
     clock_t reloj;
     hora_t hora_actual;
@@ -121,7 +144,9 @@ void test_avanza_un_minuto(void) {
     TEST_ASSERT_EQUAL_UINT8_ARRAY(HORA_ESPERADA, hora_actual, 6);
 }
 
-// ‣ Después de n ciclos de reloj la hora avanza diez minutos
+/**
+ * @brief Verifica el correcto avance tras acumular 10 minutos.
+ */
 void test_avanza_diez_minutos(void) {
     clock_t reloj;
     hora_t hora_actual;
@@ -134,7 +159,9 @@ void test_avanza_diez_minutos(void) {
     TEST_ASSERT_EQUAL_UINT8_ARRAY(HORA_ESPERADA, hora_actual, 6);
 }
 
-// ‣ Después de n ciclos de reloj la hora avanza una hora
+/**
+ * @brief Verifica el correcto avance de horas (salto del minutero).
+ */
 void test_avanza_una_hora(void) {
     clock_t reloj;
     hora_t hora_actual;
@@ -147,7 +174,9 @@ void test_avanza_una_hora(void) {
     TEST_ASSERT_EQUAL_UINT8_ARRAY(HORA_ESPERADA, hora_actual, 6);
 }
 
-// ‣ Después de n ciclos de reloj la hora avanza diez horas
+/**
+ * @brief Verifica el correcto avance tras acumular 10 horas.
+ */
 void test_avanza_diez_horas(void) {
     clock_t reloj;
     hora_t hora_actual;
@@ -160,7 +189,9 @@ void test_avanza_diez_horas(void) {
     TEST_ASSERT_EQUAL_UINT8_ARRAY(HORA_ESPERADA, hora_actual, 6);
 }
 
-// ‣ Después de n ciclos de reloj la hora avanza un día
+/**
+ * @brief Verifica el rollover de las 24 horas (salto de día).
+ */
 void test_avanza_un_dia(void) {
     clock_t reloj;
     hora_t hora_actual;
@@ -172,7 +203,9 @@ void test_avanza_un_dia(void) {
     TEST_ASSERT_EQUAL_UINT8_ARRAY(HORA_INICIAL,hora_actual, 6);
 }
 
-// ‣ Fijar la hora de la alarma y consultarla (requiere reloj en hora).
+/**
+ * @brief Prueba la configuración correcta de la alarma cuando el reloj está en hora.
+ */
 void test_consulta_alarma(void) {
     clock_t reloj;
     hora_t alarma_ajustada;
@@ -184,7 +217,9 @@ void test_consulta_alarma(void) {
     TEST_ASSERT_EQUAL_UINT8_ARRAY(HORA_ALARMA, alarma_ajustada, 6);
 }
 
-// ‣ La alarma no debe poder ajustarse si el reloj no está en hora.
+/**
+ * @brief Asegura que no se puede configurar una alarma si la hora del reloj es inválida.
+ */
 void test_alarm_rechazada_si_reloj_invalido(void) {
     clock_t reloj;
 
@@ -192,7 +227,9 @@ void test_alarm_rechazada_si_reloj_invalido(void) {
     TEST_ASSERT_FALSE(RelojSetupAlarm(reloj, HORA_ALARMA));
 }
 
-// ‣ Fijar la alarma y avanzar el reloj para que suene.
+/**
+ * @brief Valida que la alarma dispare el callback al alcanzar el tiempo exacto.
+ */
 void test_alarm_suena_cuando_se_alcanza_hora(void) {
     clock_t reloj;
     alarm_triggered = false;
@@ -205,7 +242,9 @@ void test_alarm_suena_cuando_se_alcanza_hora(void) {
     TEST_ASSERT_TRUE(alarm_triggered);
 }
 
-// ‣ Fijar la alarma, deshabilitarla y avanzar el reloj para que no suene.
+/**
+ * @brief Valida que desactivar la alarma previene que el callback se dispare.
+ */
 void test_apagar_la_alarma(void) {
     clock_t reloj;
     hora_t alarma_ajustada;
@@ -220,7 +259,9 @@ void test_apagar_la_alarma(void) {
     TEST_ASSERT_FALSE(alarm_triggered);
 }
 
-// ‣ Hacer sonar la alarma y posponerla.
+/**
+ * @brief Verifica la funcionalidad de posponer (snooze) y que la alarma suene en el nuevo horario.
+ */
 void test_posponer_la_alarma(void) {
     clock_t reloj;
     alarm_triggered = false;
@@ -239,7 +280,9 @@ void test_posponer_la_alarma(void) {
     TEST_ASSERT_TRUE(alarm_triggered);           // ahora debe sonar de nuevo
 }
 
-// ‣ Hacer sonar la alarma y cancelarla hasta el otro dia.
+/**
+ * @brief Verifica que cancelar la alarma reinicia su disparo para el próximo ciclo de 24hs.
+ */
 void test_cancelar_la_alarma(void) {
     clock_t reloj;
     alarm_triggered = false;
@@ -254,7 +297,9 @@ void test_cancelar_la_alarma(void) {
     TEST_ASSERT_TRUE(alarm_triggered);
 }
 
-// ‣ Poner alarma, posponerla, cancelara y ver q suene al otro dia a la misma hora del comienzo
+/**
+ * @brief Prueba integral del flujo de alarma: posponer, cancelar y volver a sonar al otro día en la hora base.
+ */
 void test_posponer_y_cancelar_alarma(void) {
     clock_t reloj;
     alarm_triggered = false;
@@ -282,7 +327,9 @@ void test_posponer_y_cancelar_alarma(void) {
     TEST_ASSERT_TRUE(alarm_triggered);  
 }
 
-// ‣ Al intentar ajustar una hora con valores inválidos, el reloj la rechaza.
+/**
+ * @brief Asegura que la validación rechaza horas irreales (límites de 24h, 60m, 60s, o valores BCD > 9).
+ */
 void test_rechazar_valores_invalidos(void) {
     clock_t reloj;
     
@@ -305,8 +352,9 @@ void test_rechazar_valores_invalidos(void) {
     TEST_ASSERT_FALSE(RelojGetCurrentTime(reloj, hora_actual));
 }
 
-// ‣ Si el reloj ya está en hora y se intenta poner una hora inválida, mantiene la hora previa.
-// Similar al anterior pero vemos si mantiene la hora anterior no solo el estado anterior.
+/**
+ * @brief Verifica que una falla de validación al configurar la hora no sobreescriba una hora válida previa.
+ */
 void test_mantener_hora_si_ajuste_es_invalido(void) {
     clock_t reloj;
     hora_t hora_actual;
