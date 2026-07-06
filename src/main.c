@@ -27,8 +27,7 @@ SPDX-License-Identifier: MIT
 /** @file main.c
  ** @brief Punto de entrada de la aplicación.
  **
- ** Implementa la lógica de control y prueba para la pantalla multiplexada
- ** de 7 segmentos y las teclas del poncho.
+ ** Manejo del reloj como un sistema operativo
  **
  ** \addtogroup samples Samples
  ** \brief Samples applications with MUJU Framework
@@ -41,13 +40,28 @@ SPDX-License-Identifier: MIT
 #endif
 
 #include "placa.h"
+#include "reloj.h"
 
 /* === Macros definitions ====================================================================== */
 
-#define RETARDO_MS_DEFAULT   100     // Tiempo total de espera en milisegundos
-#define CICLOS_POR_MS        25000   // Iteraciones necesarias para simular 1 ms
+#define MODO_PRUEBA 1 // Cambia a 0 cuando quieras tiempo real
+
+#if MODO_PRUEBA == 1
+    #define TICKS_POR_SEGUNDO 1    // 100 veces más rápido (1 seg real = 100 seg simulados)
+#else
+    #define TICKS_POR_SEGUNDO 1000  // Tiempo real (1 seg real = 1 seg simulado)
+#endif
 
 /* === Private data type declarations ========================================================== */
+
+typedef enum {
+    MODO_SIN_AJUSTAR,       // Estado inicial
+    MODO_NORMAL,            // Muestra hora actual
+    MODO_MINUTOS,           // Ajuste de minutos del reloj
+    MODO_HORAS,             // Ajuste de horas del reloj
+    MODO_MINUTOS_ALARMA,    // Ajuste de minutos de la alarma
+    MODO_HORAS_ALARMA       // Ajuste de horas de la alarma
+} modo_t;
 
 /* === Private variable declarations =========================================================== */
 
@@ -57,69 +71,193 @@ SPDX-License-Identifier: MIT
 
 /* === Private variable definitions ============================================================ */
 
+display_t mi_pantalla;
+
+volatile static modo_t modo;
+
+static clock_t reloj;
+
+static const uint8_t LIMITE_MINUTOS[] = {6, 0};
+
+static const uint8_t LIMITE_HORAS[] = {2, 4};
+
 /* === Private function implementation ========================================================= */
+
+void CambiarModo(modo_t valor){
+    modo = valor;
+    switch (modo) {
+    case MODO_SIN_AJUSTAR:
+        DisplayFlashDigits(mi_pantalla, 0, 3, 100);
+        break;
+    case MODO_NORMAL:
+        DisplayFlashDigits(mi_pantalla, 0, 0, 0);
+        break;
+    case MODO_MINUTOS:
+        DisplayFlashDigits(mi_pantalla, 2, 3, 100);
+        break;
+    case MODO_HORAS:
+        DisplayFlashDigits(mi_pantalla, 0, 1, 100);
+        break;
+    case MODO_MINUTOS_ALARMA:
+        DisplayFlashDigits(mi_pantalla, 2, 3, 100);
+        break;
+    case MODO_HORAS_ALARMA:
+        DisplayFlashDigits(mi_pantalla, 0, 1, 100);
+        break;
+        
+    default:
+        break;
+    }
+
+}
+
+void SonarAlarma(void){
+
+}
+
+void IncrementarBCD(uint8_t numero[2], const uint8_t limite[2]) {
+    numero[1]++;
+    if (numero[1] > 9) {
+        numero[0]++;
+        numero[1] = 0;
+    }
+    if((numero[1] == limite[1]) && (numero[0] == limite[0])) {
+        numero[0] = 0;
+        numero[1] = 0;
+    }
+}
+
+void DecrementarBCD(uint8_t numero[2], const uint8_t limite[2]) {
+    // Chequea si estamos en el mínimo (0, 0)
+    if ((numero[0] == 0) && (numero[1] == 0)) {
+        // Ir al máximo válido antes del límite
+        if (limite[1] > 0) {
+            numero[0] = limite[0];
+            numero[1] = limite[1] - 1;
+        } else {
+            numero[0] = limite[0] - 1;
+            numero[1] = 9;
+        }
+    } else {
+        // Decrementar normalmente
+        if (numero[1] == 0) {
+            numero[0]--;
+            numero[1] = 9;
+        } else {
+            numero[1]--;
+        }
+    }
+}
+
 
 /* === Public function implementation ========================================================== */
 
 int main(void) {
     board_t placa = BoardCreate();
-    uint8_t entrada[4] = {1,2,3,4};
-    uint16_t frecuencia = 0;
+    mi_pantalla = placa->pantalla;
 
-    DisplayWriteBCD(placa->pantalla, entrada, sizeof(entrada));
+    SystemCoreClockUpdate();
+    SysTick_Config(SystemCoreClock / 1000);
+
+    reloj = RelojCreate(TICKS_POR_SEGUNDO, SonarAlarma);
+
+    hora_t hora_inicial = {0, 0, 0, 0, 0, 0};
+    (void)RelojSetupCurrentTime(reloj, hora_inicial);
+
+    bool modo_edicion = false;
+    uint16_t tiempo_antirrebote = 0;
+
     while (true) {
-        if(DigitalInputHasActivated(placa->tecla_aceptar)){
-            if (frecuencia == 0) {
-            frecuencia = 4;
-            } else if(frecuencia == 4) {
-                frecuencia = 16;
-            } else if(frecuencia == 16) {
-                frecuencia = 64;
-            } else if(frecuencia == 64) {
-                frecuencia = 128;
-            } else {
-                frecuencia = 0;
+        hora_t hora_actual;
+        uint8_t hora_display[4];
+    
+        if (RelojGetCurrentTime(reloj, hora_actual)) {
+            hora_display[0] = hora_actual[0];
+            hora_display[1] = hora_actual[1];
+            hora_display[2] = hora_actual[2];
+            hora_display[3] = hora_actual[3];
+            DisplayWriteBCD(placa->pantalla, hora_display, sizeof(hora_display));
+        }
+
+        if (tiempo_antirrebote > 0) {
+            tiempo_antirrebote--; 
+        }
+
+        if (tiempo_antirrebote == 0) {
+            bool tecla_presionada = false;
+
+            if (DigitalInputHasActivated(placa->tecla_aceptar)) {
+                modo_edicion = !modo_edicion;
+                if (modo_edicion) {
+                    modo = MODO_HORAS; // O el estado de edición que uses
+                    DisplayFlashDigits(placa->pantalla, 0, 3, 100);
+                } else {
+                    modo = MODO_NORMAL;
+                    DisplayFlashDigits(placa->pantalla, 0, 3, 0);
+                }
+                tecla_presionada = true;
             }
-            DisplayFlashDigits(placa->pantalla, 0, 3, frecuencia);
-        }
-        
-        if(DigitalInputHasActivated(placa->tecla_cancelar)){
-            DisplayToggleDots(placa->pantalla, 0, 3);
-        }
 
-        if(DigitalInputHasActivated(placa->tecla_F4)){
-            // Cambia el digito 1 por su numero siguiente
-            entrada[0] = (entrada[0] + 1) % 10;
-            DisplayWriteBCD(placa->pantalla, entrada, sizeof(entrada));
-        }
+            if (modo_edicion) {
+                uint8_t horas[2] = {hora_actual[0], hora_actual[1]};
+                uint8_t minutos[2] = {hora_actual[2], hora_actual[3]};
+                bool cambio = false;
 
-        if(DigitalInputHasActivated(placa->tecla_F3)){
-            // Cambia el digito 2 por su numero siguiente
-            entrada[1] = (entrada[1] + 1) % 10;
-            DisplayWriteBCD(placa->pantalla, entrada, sizeof(entrada));
-        }
+                if (DigitalInputHasActivated(placa->tecla_F1)) {
+                    IncrementarBCD(minutos, LIMITE_MINUTOS);
+                    hora_actual[2] = minutos[0];
+                    hora_actual[3] = minutos[1];
+                    cambio = true;
+                }
+                if (DigitalInputHasActivated(placa->tecla_F2)) {
+                    DecrementarBCD(minutos, LIMITE_MINUTOS);
+                    hora_actual[2] = minutos[0];
+                    hora_actual[3] = minutos[1];
+                    cambio = true;
+                }
+                if (DigitalInputHasActivated(placa->tecla_F3)) {
+                    IncrementarBCD(horas, LIMITE_HORAS);
+                    hora_actual[0] = horas[0];
+                    hora_actual[1] = horas[1];
+                    cambio = true;
+                }
+                if (DigitalInputHasActivated(placa->tecla_F4)) {
+                    DecrementarBCD(horas, LIMITE_HORAS);
+                    hora_actual[0] = horas[0];
+                    hora_actual[1] = horas[1];
+                    cambio = true;
+                }
 
-        if(DigitalInputHasActivated(placa->tecla_F2)){
-            // Cambia el digito 3 por su numero siguiente
-            entrada[2] = (entrada[2] + 1) % 10;
-            DisplayWriteBCD(placa->pantalla, entrada, sizeof(entrada));
-        }
-
-        if(DigitalInputHasActivated(placa->tecla_F1)){
-            // Cambia el digito 4 por su numero siguiente
-            entrada[3] = (entrada[3] + 1) % 10;
-            DisplayWriteBCD(placa->pantalla, entrada, sizeof(entrada));
-        }
-
-        for(int index = 0; index < RETARDO_MS_DEFAULT; index++){
-            for(int delay = 0; delay < CICLOS_POR_MS; delay++){
-                __asm("NOP");
+                if (cambio) {
+                    RelojSetupCurrentTime(reloj, hora_actual);
+                    tecla_presionada = true;
+                }
             }
-            DisplayRefresh(placa->pantalla);
+            
+            if (tecla_presionada) {
+                tiempo_antirrebote = 500; 
+            }
         }
+        __asm volatile ("wfi");
     }
 
     return 0;
+}
+
+void SysTick_Handler(void) {
+    static uint16_t contador_puntos = 0;
+
+    DisplayRefresh(mi_pantalla);
+
+    RelojNewTick(reloj);
+
+    contador_puntos = (contador_puntos + 1) % 1000;
+    if (modo == MODO_NORMAL) {
+        // Cada 500 ms conmuta el estado de los puntos del centro
+        if ((contador_puntos == 0) || (contador_puntos == 500)) {
+            DisplayToggleDots(mi_pantalla, 1, 1); 
+        }
+    }
 }
 
 /* === End of documentation ==================================================================== */
