@@ -159,6 +159,12 @@ void DisplayRefresh(display_t display){
     uint8_t segments;
 
     display->driver->UpdateSegments(0x00); // Apaga todos los segmentos
+
+    __asm volatile ("nop");
+    __asm volatile ("nop");
+    __asm volatile ("nop");
+    __asm volatile ("nop");
+
     display->active_digit = (display->active_digit + 1) % display->digits; // Avanza al siguiente dígito
     
     segments = display->display_memory[display->active_digit]; // Obtiene los segmentos del dígito activo
@@ -177,8 +183,8 @@ void DisplayRefresh(display_t display){
             }
         }
     }
-    display->driver->UpdateSegments(segments); // Actualiza los segmentos del dígito actual
     display->driver->UpdateDigits(display->active_digit); // Activa el dígito actual
+    display->driver->UpdateSegments(segments); // Actualiza los segmentos del dígito actual
 }
 
 void DisplayFlashDigits(display_t display, uint8_t from, uint8_t to, uint16_t frecuency){
