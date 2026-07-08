@@ -141,6 +141,18 @@ bool RelojSnoozeAlarm(clock_t clock, uint32_t snooze_time);
  */
 void RelojCancelAlarm(clock_t self);
 
+/**
+ * @brief Habilita el disparo de la alarma configurada.
+ * * @param self Instancia del reloj.
+ */
+void RelojEnableAlarm(clock_t self);
+
+/**
+ * @brief Deshabilita el disparo de la alarma configurada.
+ * * @param self Instancia del reloj.
+ */
+void RelojDisableAlarm(clock_t self);
+
 /* === Public function declarations ================================================================================ */
 
 /* === End of conditional blocks =================================================================================== */

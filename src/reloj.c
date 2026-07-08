@@ -220,4 +220,11 @@ void RelojCancelAlarm(clock_t self){
     self->alarm = self->alarm_origin;
 }
 
+void RelojEnableAlarm(clock_t self) {
+    self->alarm_enabled = true;
+}
+
+void RelojDisableAlarm(clock_t self) {
+    self->alarm_enabled = false;
+}
 /* === End of documentation ==================================================================== */
