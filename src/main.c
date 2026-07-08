@@ -45,7 +45,11 @@ SPDX-License-Identifier: MIT
 
 /* === Macros definitions ====================================================================== */
 
-#define MODO_PRUEBA 0 // Cambia a 0 cuando quieras tiempo real
+/** * @brief Control del entorno de ejecución: Tiempo real vs. Tiempo simulado.
+ * MODO_PRUEBA = 1: Acelera el reloj (10 Hz) para validar transiciones rápidas y alarmas en segundos.
+ * MODO_PRUEBA = 0: Configura el Systick para operar a frecuencia real (1000 Hz / 1 ms).
+ */
+#define MODO_PRUEBA 0
 
 #if MODO_PRUEBA == 1
     #define TICKS_POR_SEGUNDO 10    // 100 veces más rápido (1 seg real = 100 seg simulados)
@@ -73,17 +77,21 @@ typedef enum {
 /* === Private variable definitions ============================================================ */
 
 display_t mi_pantalla;
+digital_output_t mi_led;
 
-volatile static modo_t modo;
-volatile static modo_t ultimo_modo = MODO_SIN_AJUSTAR;
-static bool reloj_iniciado = false;
+volatile static modo_t modo;                 /**< Estado actual de la máquina de estados de la UI */
+volatile static modo_t ultimo_modo = MODO_SIN_AJUSTAR; /**< Memoria del modo previo para cancelaciones abruptas */
 
-static clock_t reloj;
+static clock_t reloj;                        /**< Instancia opaca del controlador lógico del reloj */
 
-static const uint8_t LIMITE_MINUTOS[] = {6, 0};
+static const uint8_t LIMITE_MINUTOS[] = {6, 0}; /**< Límite BCD superior para minutos (60 min) */
+static const uint8_t LIMITE_HORAS[] = {2, 4};   /**< Límite BCD superior para horas (24 hs) */
 
-static const uint8_t LIMITE_HORAS[] = {2, 4};
+static bool reloj_iniciado = false;          /**< Flag de sincronismo: evita que el reloj avance si no fue puesto en hora */
+volatile static bool alarma_sonando = false; /**< Estado activo del indicador acústico/lumínico de alarma */
 
+volatile uint16_t tiempo_antirrebote = 0;    /**< Temporizador de guarda de teclado (decremeta en SysTick) */
+volatile uint32_t contador_AFK = 0;          /**< Contador de inactividad del usuario (ms) para timeout de edición */
 /* === Private function implementation ========================================================= */
 
 void CambiarModo(modo_t valor){
@@ -91,23 +99,28 @@ void CambiarModo(modo_t valor){
     switch (modo) {
     case MODO_SIN_AJUSTAR:
         DisplayFlashDigits(mi_pantalla, 0, 3, 100);
+        DisplaySetDots(mi_pantalla, 1, 1);
         break;
     case MODO_NORMAL:
         DisplayFlashDigits(mi_pantalla, 0, 0, 0);
+        DisplayClearDots(mi_pantalla, 0, 3);
         break;
     case MODO_MINUTOS:
         DisplayFlashDigits(mi_pantalla, 2, 3, 100);
+        DisplayClearDots(mi_pantalla, 0, 3);
         break;
     case MODO_HORAS:
         DisplayFlashDigits(mi_pantalla, 0, 1, 100);
+        DisplayClearDots(mi_pantalla, 0, 3);
         break;
     case MODO_MINUTOS_ALARMA:
         DisplayFlashDigits(mi_pantalla, 2, 3, 100);
+        DisplaySetDots(mi_pantalla, 0, 3);
         break;
     case MODO_HORAS_ALARMA:
         DisplayFlashDigits(mi_pantalla, 0, 1, 100);
+        DisplaySetDots(mi_pantalla, 0, 3);
         break;
-        
     default:
         break;
     }
@@ -115,7 +128,8 @@ void CambiarModo(modo_t valor){
 }
 
 void SonarAlarma(void){
-
+    alarma_sonando = true;
+    DigitalOutputActivate(mi_led);
 }
 
 void IncrementarBCD(uint8_t numero[2], const uint8_t limite[2]) {
@@ -158,11 +172,12 @@ void DecrementarBCD(uint8_t numero[2], const uint8_t limite[2]) {
 int main(void) {
 
     for (volatile uint32_t i = 0; i < 5000000; i++) {
-        __asm("nop");
+        __asm volatile ("nop");
     }
 
     board_t placa = BoardCreate();
     mi_pantalla = placa->pantalla;
+    mi_led = placa->led_rojo;
 
     SystemCoreClockUpdate();
 
@@ -172,10 +187,8 @@ int main(void) {
     hora_t hora_inicial = {0, 0, 0, 0, 0, 0};
     (void)RelojSetupCurrentTime(reloj, hora_inicial);
 
-    uint16_t tiempo_antirrebote = 0;
     uint16_t contador_F1 = 0;
-    uint32_t contador_AFK = 0;
-
+    uint16_t contador_F2 = 0;
     hora_t hora_en_edicion = {0, 0, 0, 0, 0, 0}; 
 
     SysTick_Config(SystemCoreClock / 1000);
@@ -204,11 +217,8 @@ int main(void) {
         if (modo == MODO_MINUTOS || modo == MODO_HORAS) {
             contador_AFK++;
             if (contador_AFK >= 30000) { // 30000 milisegundos = 30 segundos
-                if (modo == MODO_MINUTOS || modo == MODO_HORAS) {
-                    CambiarModo(ultimo_modo);
-                } else {
-                    CambiarModo(MODO_NORMAL);
-                }
+                CambiarModo((modo <= MODO_HORAS) ? ultimo_modo : MODO_NORMAL);
+
                 contador_AFK = 0;
                 tiempo_antirrebote = 150;
             }
@@ -225,11 +235,8 @@ int main(void) {
                     tiempo_antirrebote = 300; 
                     contador_F1 = 0;
 
-                    if (valid_time) {
-                        memcpy(hora_en_edicion, hora_actual, sizeof(hora_t));
-                    } else {
-                        memset(hora_en_edicion, 0, sizeof(hora_t));
-                    }
+                    if (valid_time) memcpy(hora_en_edicion, hora_actual, sizeof(hora_t));
+                    else memset(hora_en_edicion, 0, sizeof(hora_t));
                 }
             } else {
                 contador_F1 = 0;
@@ -307,6 +314,17 @@ void SysTick_Handler(void) {
     if (reloj_iniciado) {
         RelojNewTick(reloj);
     }
+
+    if (tiempo_antirrebote > 0) {
+        tiempo_antirrebote--;
+    }
+
+    if (modo > MODO_NORMAL) {
+        contador_AFK++;
+    } else {
+        contador_AFK = 0;
+    }
+    // -----------------------------
 
     contador_puntos = (contador_puntos + 1) % 1000;
     if (modo == MODO_NORMAL) {
