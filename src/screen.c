@@ -145,7 +145,6 @@ display_t DisplayCreate(uint8_t digits, display_driver_t driver){
 }
 
 void DisplayWriteBCD(display_t display, uint8_t * number, uint8_t size){
-    // Escribe un número BCD en la memoria de la pantalla    
     for (uint8_t i = 0; i < size && i < display->digits; i++) {
 
         uint8_t estado_punto = display->display_memory[i] & SEGMENT_P;
@@ -155,7 +154,6 @@ void DisplayWriteBCD(display_t display, uint8_t * number, uint8_t size){
 }
 
 void DisplayRefresh(display_t display){
-    // Refresca un paso del barrido multiplexado
     uint8_t segments;
 
     display->driver->UpdateSegments(0x00); // Apaga todos los segmentos
@@ -188,7 +186,6 @@ void DisplayRefresh(display_t display){
 }
 
 void DisplayFlashDigits(display_t display, uint8_t from, uint8_t to, uint16_t frecuency){
-    // Configura el parpadeo de un rango de dígitos
     display->flashing_from = from;
     display->flashing_to = to;
     display->flashing_frecuency = frecuency;
@@ -196,9 +193,20 @@ void DisplayFlashDigits(display_t display, uint8_t from, uint8_t to, uint16_t fr
 }
 
 void DisplayToggleDots(display_t display, uint8_t from, uint8_t to){
-    // Conmuta el punto decimal de un rango de dígitos
     for (uint8_t i = from; i <= to && i < display->digits; i++) {
         display->display_memory[i] ^= SEGMENT_P; // Conmuta el bit del punto decimal
+    }
+}
+
+void DisplaySetDots(display_t display, uint8_t from, uint8_t to) {
+    for (uint8_t i = from; i <= to && i < display->digits; i++) {
+        display->display_memory[i] |= SEGMENT_P; // Fuerza el encendido (OR)
+    }
+}
+
+void DisplayClearDots(display_t display, uint8_t from, uint8_t to) {
+    for (uint8_t i = from; i <= to && i < display->digits; i++) {
+        display->display_memory[i] &= ~SEGMENT_P; // Fuerza el apagado (AND NOT)
     }
 }
 
