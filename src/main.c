@@ -190,32 +190,37 @@ int main(void) {
     uint16_t contador_F1 = 0;
     uint16_t contador_F2 = 0;
     hora_t hora_en_edicion = {0, 0, 0, 0, 0, 0}; 
+    hora_t alarma_en_edicion = {0, 0, 0, 0, 0, 0};
 
     SysTick_Config(SystemCoreClock / 1000);
     __enable_irq();
 
     while (true) {
         hora_t hora_actual;
-        uint8_t hora_display[4];
+        uint8_t *hora_display;
 
         bool valid_time = RelojGetCurrentTime(reloj, hora_actual);
 
         if (modo == MODO_MINUTOS || modo == MODO_HORAS) {
-            memcpy(hora_display, hora_en_edicion, 4);
-        } else if (valid_time) {
-            memcpy(hora_display, hora_actual, 4);
+            hora_display = hora_en_edicion;
+        } else if (modo == MODO_MINUTOS_ALARMA || modo == MODO_HORAS_ALARMA) {
+            hora_display = alarma_en_edicion;
+        } else {
+            hora_display = hora_actual;
         }
 
-        if (valid_time || modo == MODO_MINUTOS || modo == MODO_HORAS) {
-            DisplayWriteBCD(placa->pantalla, hora_display, sizeof(hora_display));
+        if (valid_time || modo > MODO_NORMAL) {
+            DisplayWriteBCD(mi_pantalla, hora_display, 4);
+            
+            hora_t alarma_temp;
+            if (RelojGetAlarm(reloj, alarma_temp)) {
+                DisplaySetDots(mi_pantalla, 3, 3);
+            } else if (modo != MODO_MINUTOS_ALARMA && modo != MODO_HORAS_ALARMA) {
+                DisplayClearDots(mi_pantalla, 3, 3);
+            }
         }
 
-        if (tiempo_antirrebote > 0) {
-            tiempo_antirrebote--; 
-        }
-
-        if (modo == MODO_MINUTOS || modo == MODO_HORAS) {
-            contador_AFK++;
+        if (modo > MODO_NORMAL) {
             if (contador_AFK >= 30000) { // 30000 milisegundos = 30 segundos
                 CambiarModo((modo <= MODO_HORAS) ? ultimo_modo : MODO_NORMAL);
 
@@ -240,6 +245,20 @@ int main(void) {
                 }
             } else {
                 contador_F1 = 0;
+            }
+
+            if (modo == MODO_NORMAL) {
+                if (DigitalInputGetState(placa->tecla_F2)) {
+                    contador_F2++;
+                    if (contador_F2 >= 3000) {
+                        CambiarModo(MODO_MINUTOS_ALARMA);
+                        tiempo_antirrebote = 300;
+                        contador_F2 = 0;
+                        (void)RelojGetAlarm(reloj, alarma_en_edicion);
+                    }
+                } else {
+                    contador_F2 = 0;
+                }
             }
         }
 
@@ -289,7 +308,41 @@ int main(void) {
                 }
                 break;
             case MODO_MINUTOS_ALARMA:
+                if (DigitalInputHasActivated(placa->tecla_F1)) {
+                    IncrementarBCD(&alarma_en_edicion[2], LIMITE_MINUTOS);
+                    tecla_presionada = true;
+                }
+                if (DigitalInputHasActivated(placa->tecla_F2)) {
+                    DecrementarBCD(&alarma_en_edicion[2], LIMITE_MINUTOS);
+                    tecla_presionada = true;
+                }
+                if (DigitalInputHasActivated(placa->tecla_aceptar)) {
+                    CambiarModo(MODO_HORAS_ALARMA);
+                    tecla_presionada = true;
+                }
+                if (DigitalInputHasActivated(placa->tecla_cancelar)) {
+                    CambiarModo(MODO_NORMAL);
+                    tecla_presionada = true;
+                }
+                break;
             case MODO_HORAS_ALARMA:
+                if (DigitalInputHasActivated(placa->tecla_F3)) {
+                    IncrementarBCD(&alarma_en_edicion[0], LIMITE_HORAS);
+                    tecla_presionada = true;
+                }
+                if (DigitalInputHasActivated(placa->tecla_F4)) {
+                    DecrementarBCD(&alarma_en_edicion[0], LIMITE_HORAS);
+                    tecla_presionada = true;
+                }
+                if (DigitalInputHasActivated(placa->tecla_aceptar)) {
+                    RelojSetupAlarm(reloj, alarma_en_edicion);
+                    CambiarModo(MODO_NORMAL);
+                    tecla_presionada = true;
+                }
+                if (DigitalInputHasActivated(placa->tecla_cancelar)) {
+                    CambiarModo(MODO_NORMAL);
+                    tecla_presionada = true;
+                }
                 break;
             default:
                 break;
