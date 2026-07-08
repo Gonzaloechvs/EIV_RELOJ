@@ -174,6 +174,7 @@ int main(void) {
 
     uint16_t tiempo_antirrebote = 0;
     uint16_t contador_F1 = 0;
+    uint32_t contador_AFK = 0;
 
     hora_t hora_en_edicion = {0, 0, 0, 0, 0, 0}; 
 
@@ -198,6 +199,21 @@ int main(void) {
 
         if (tiempo_antirrebote > 0) {
             tiempo_antirrebote--; 
+        }
+
+        if (modo == MODO_MINUTOS || modo == MODO_HORAS) {
+            contador_AFK++;
+            if (contador_AFK >= 30000) { // 30000 milisegundos = 30 segundos
+                if (modo == MODO_MINUTOS || modo == MODO_HORAS) {
+                    CambiarModo(ultimo_modo);
+                } else {
+                    CambiarModo(MODO_NORMAL);
+                }
+                contador_AFK = 0;
+                tiempo_antirrebote = 150;
+            }
+        } else {
+            contador_AFK = 0;
         }
 
         if (modo == MODO_NORMAL || modo == MODO_SIN_AJUSTAR) {
@@ -274,6 +290,7 @@ int main(void) {
 
             if (tecla_presionada) {
                 tiempo_antirrebote = 150;
+                contador_AFK = 0;
             }
         }
         __asm volatile ("wfi");
