@@ -25,9 +25,11 @@ SPDX-License-Identifier: MIT
 *************************************************************************************************/
 
 /** @file main.c
- ** @brief Punto de entrada de la aplicación.
+ ** @brief Punto de entrada de la aplicación del reloj digital con alarma.
  **
- ** Manejo del reloj como un sistema operativo
+ ** Contiene el lazo principal de control y la máquina de estados que gestiona
+ ** la interfaz de usuario (UI), el filtrado de teclado, los tiempos de inactividad
+ ** y la interacción con la capa lógica del reloj.
  **
  ** \addtogroup samples Samples
  ** \brief Samples applications with MUJU Framework
@@ -57,15 +59,28 @@ SPDX-License-Identifier: MIT
     #define TICKS_POR_SEGUNDO 1000  // Tiempo real (1 seg real = 1 seg simulado)
 #endif
 
+/** @brief Tiempos de la interfaz de usuario (basados en llamadas del SysTick de 1ms) */
+#define TIEMPO_AFK_MS               30000   /**< Timeout para abortar edición (30 seg) */
+#define TIEMPO_PULSACION_LARGA_MS   3000    /**< Tiempo para registrar ingreso a configuración (1 seg) */
+#define ANTIRREBOTE_CORTO_MS        150     /**< Guarda para pulsaciones simples (150 ms) */
+#define ANTIRREBOTE_LARGO_MS        300     /**< Guarda post-pulsación larga (300 ms) */
+
+/** @brief Parámetros lógicos y de sistema */
+#define TIEMPO_SNOOZE_SEG           300     /**< Segundos que se pospone la alarma (5 minutos) */
+#define DEMORA_JTAG_CICLOS          5000000 /**< Ciclos de demora inicial para estabilizar el debugger */
+
 /* === Private data type declarations ========================================================== */
 
+/**
+ * @brief Estados de la interfaz de usuario y modos de edición.
+ */
 typedef enum {
-    MODO_SIN_AJUSTAR,       // Estado inicial
-    MODO_NORMAL,            // Muestra hora actual
-    MODO_MINUTOS,           // Ajuste de minutos del reloj
-    MODO_HORAS,             // Ajuste de horas del reloj
-    MODO_MINUTOS_ALARMA,    // Ajuste de minutos de la alarma
-    MODO_HORAS_ALARMA       // Ajuste de horas de la alarma
+    MODO_SIN_AJUSTAR,       /**< Estado inicial: el reloj parpadea esperando configuración */
+    MODO_NORMAL,            /**< Funcionamiento normal: muestra la hora actual y titila el punto */
+    MODO_MINUTOS,           /**< Modo de edición: ajuste de los minutos del reloj principal */
+    MODO_HORAS,             /**< Modo de edición: ajuste de las horas del reloj principal */
+    MODO_MINUTOS_ALARMA,    /**< Modo de edición: ajuste de los minutos de la alarma */
+    MODO_HORAS_ALARMA       /**< Modo de edición: ajuste de las horas de la alarma */
 } modo_t;
 
 /* === Private variable declarations =========================================================== */
@@ -76,24 +91,30 @@ typedef enum {
 
 /* === Private variable definitions ============================================================ */
 
-display_t mi_pantalla;
-digital_output_t mi_led;
+display_t mi_pantalla;      /**< Descriptor de la pantalla multiplexada de 7 segmentos */
+digital_output_t mi_led;    /**< Descriptor del indicador lumínico (LED rojo) de alarma activa */
 
-volatile static modo_t modo;                 /**< Estado actual de la máquina de estados de la UI */
-volatile static modo_t ultimo_modo = MODO_SIN_AJUSTAR; /**< Memoria del modo previo para cancelaciones abruptas */
+volatile static modo_t modo;                        /**< Estado actual de la máquina de estados de la UI */
+volatile static modo_t ultimo_modo = MODO_SIN_AJUSTAR; /**< Memoria del último modo válido (para cancelaciones) */
 
-static clock_t reloj;                        /**< Instancia opaca del controlador lógico del reloj */
+static clock_t reloj;                               /**< Instancia opaca de la lógica del reloj */
 
-static const uint8_t LIMITE_MINUTOS[] = {6, 0}; /**< Límite BCD superior para minutos (60 min) */
-static const uint8_t LIMITE_HORAS[] = {2, 4};   /**< Límite BCD superior para horas (24 hs) */
+static const uint8_t LIMITE_MINUTOS[] = {6, 0};     /**< Límite superior BCD para la edición de minutos (60) */
 
-static bool reloj_iniciado = false;          /**< Flag de sincronismo: evita que el reloj avance si no fue puesto en hora */
-volatile static bool alarma_sonando = false; /**< Estado activo del indicador acústico/lumínico de alarma */
+static const uint8_t LIMITE_HORAS[] = {2, 4};       /**< Límite superior BCD para la edición de horas (24) */
 
-volatile uint16_t tiempo_antirrebote = 0;    /**< Temporizador de guarda de teclado (decremeta en SysTick) */
-volatile uint32_t contador_AFK = 0;          /**< Contador de inactividad del usuario (ms) para timeout de edición */
+static bool reloj_iniciado = false;                 /**< Bandera de sincronismo: habilita el avance temporal del reloj */
+volatile static bool alarma_sonando = false;        /**< Bandera de estado del actuador de la alarma */
+
+volatile uint16_t tiempo_antirrebote = 0;           /**< Tiempo de guarda para filtrado de rebotes de teclado (ms) */
+volatile uint32_t contador_AFK = 0;                 /**< Contador de inactividad del usuario en menús de edición (ms) */
+
 /* === Private function implementation ========================================================= */
 
+/**
+ * @brief Cambia el modo de operación actual de la interfaz y actualiza los efectos visuales.
+ * @param valor Nuevo modo de operación a establecer.
+ */
 void CambiarModo(modo_t valor){
     modo = valor;
     switch (modo) {
@@ -127,11 +148,19 @@ void CambiarModo(modo_t valor){
 
 }
 
+/**
+ * @brief Callback disparado por la lógica del reloj al coincidir el tiempo con la alarma.
+ */
 void SonarAlarma(void){
     alarma_sonando = true;
-    DigitalOutputActivate(mi_led);
+    DigitalOutputActivate(mi_led); //se utiliza el led_rojo de la placa como indicador visual de la alarma
 }
 
+/**
+ * @brief Incrementa un valor numérico representado en formato BCD de dos dígitos.
+ * @param numero Arreglo de 2 bytes [decenas, unidades] a incrementar.
+ * @param limite Arreglo de 2 bytes [decenas, unidades] que representa el límite superior exclusivo.
+ */
 void IncrementarBCD(uint8_t numero[2], const uint8_t limite[2]) {
     numero[1]++;
     if (numero[1] > 9) {
@@ -144,6 +173,11 @@ void IncrementarBCD(uint8_t numero[2], const uint8_t limite[2]) {
     }
 }
 
+/**
+ * @brief Decrementa un valor numérico representado en formato BCD de dos dígitos.
+ * @param numero Arreglo de 2 bytes [decenas, unidades] a decrementar.
+ * @param limite Arreglo de 2 bytes [decenas, unidades] que define el valor máximo al desbordar por cero.
+ */
 void DecrementarBCD(uint8_t numero[2], const uint8_t limite[2]) {
     // Chequea si estamos en el mínimo (0, 0)
     if ((numero[0] == 0) && (numero[1] == 0)) {
@@ -169,18 +203,25 @@ void DecrementarBCD(uint8_t numero[2], const uint8_t limite[2]) {
 
 /* === Public function implementation ========================================================== */
 
+/**
+ * @brief Función principal del programa.
+ * @return int Retorno del sistema (no utilizado en sistemas embebidos bared-metal).
+ */
 int main(void) {
 
-    for (volatile uint32_t i = 0; i < 5000000; i++) {
+    // Demora de cortesía para estabilidad del JTAG en la depuración
+    for (volatile uint32_t i = 0; i < DEMORA_JTAG_CICLOS; i++) {
         __asm volatile ("nop");
     }
 
+    // Inicialización de la abstracción de hardware (HAL)
     board_t placa = BoardCreate();
     mi_pantalla = placa->pantalla;
     mi_led = placa->led_rojo;
 
     SystemCoreClockUpdate();
 
+    // Creación del objeto de lógica temporal
     reloj = RelojCreate(TICKS_POR_SEGUNDO, SonarAlarma);
     CambiarModo(MODO_SIN_AJUSTAR);
 
@@ -192,6 +233,7 @@ int main(void) {
     hora_t hora_en_edicion = {0, 0, 0, 0, 0, 0};
     hora_t alarma_en_edicion = {0, 0, 0, 0, 0, 0};
 
+    // Configuración del SysTick a una frecuencia de interrupción de 1 kHz (1 ms)
     SysTick_Config(SystemCoreClock / 1000);
     __enable_irq();
 
@@ -201,7 +243,7 @@ int main(void) {
 
         bool valid_time = RelojGetCurrentTime(reloj, hora_actual);
 
-        // Enrutamiento de la hora en pantalla
+        // 1. Enrutamiento de la hora en pantalla
         if (modo == MODO_MINUTOS || modo == MODO_HORAS) {
             hora_display = hora_en_edicion;
         } else if (modo == MODO_MINUTOS_ALARMA || modo == MODO_HORAS_ALARMA) {
@@ -210,37 +252,38 @@ int main(void) {
             hora_display = hora_actual;
         }
 
+        // 2. Actualización física de los dígitos y puntos decimales
         if (valid_time || modo > MODO_NORMAL) {
             DisplayWriteBCD(mi_pantalla, hora_display, 4);
             
             hora_t alarma_temp;
             if (RelojGetAlarm(reloj, alarma_temp)) {
-                DisplaySetDots(mi_pantalla, 3, 3);
+                DisplaySetDots(mi_pantalla, 3, 3); // Punto del dígito 0 indica alarma encendida
             } else if (modo != MODO_MINUTOS_ALARMA && modo != MODO_HORAS_ALARMA) {
                 DisplayClearDots(mi_pantalla, 3, 3);
             }
         }
 
-        // Temporizador de Inactividad (AFK)
+        // 3. Temporizador de Inactividad (AFK)
         if (modo > MODO_NORMAL) {
-            if (contador_AFK >= 30000) { // 30000 milisegundos = 30 segundos
+            if (contador_AFK >= TIEMPO_AFK_MS) { // 30000 milisegundos = 30 segundos
                 CambiarModo((modo <= MODO_HORAS) ? ultimo_modo : MODO_NORMAL);
 
                 contador_AFK = 0;
-                tiempo_antirrebote = 150;
+                tiempo_antirrebote = ANTIRREBOTE_CORTO_MS;
             }
         } else {
             contador_AFK = 0;
         }
 
-        // Deteccion de pulso largo F1 y F2
+        // 4. Deteccion de pulso largo F1 y F2
         if (modo == MODO_NORMAL || modo == MODO_SIN_AJUSTAR) {
             if (DigitalInputGetState(placa->tecla_F1)) {
                 contador_F1++;
-                if (contador_F1 >= 3000) { 
+                if (contador_F1 >= TIEMPO_PULSACION_LARGA_MS) { 
                     ultimo_modo = modo;
                     CambiarModo(MODO_MINUTOS);
-                    tiempo_antirrebote = 300; 
+                    tiempo_antirrebote = ANTIRREBOTE_LARGO_MS; 
                     contador_F1 = 0;
 
                     if (valid_time) memcpy(hora_en_edicion, hora_actual, sizeof(hora_t));
@@ -253,9 +296,9 @@ int main(void) {
             if (modo == MODO_NORMAL) {
                 if (DigitalInputGetState(placa->tecla_F2)) {
                     contador_F2++;
-                    if (contador_F2 >= 3000) {
+                    if (contador_F2 >= TIEMPO_PULSACION_LARGA_MS) {
                         CambiarModo(MODO_MINUTOS_ALARMA);
-                        tiempo_antirrebote = 300;
+                        tiempo_antirrebote = ANTIRREBOTE_LARGO_MS;
                         contador_F2 = 0;
                         (void)RelojGetAlarm(reloj, alarma_en_edicion);
                     }
@@ -265,6 +308,7 @@ int main(void) {
             }
         }
 
+        // 5. Máquina de estados principal gobernada por eventos de teclado (Post-Antirrebote)
         if (tiempo_antirrebote == 0) {
             bool tecla_presionada = false;
 
@@ -274,13 +318,13 @@ int main(void) {
              case MODO_NORMAL:
                 if (alarma_sonando) {
                     if (DigitalInputHasActivated(placa->tecla_aceptar)) {
-                        RelojSnoozeAlarm(reloj, 300); 
+                        RelojSnoozeAlarm(reloj, TIEMPO_SNOOZE_SEG); // Pospone la alarma por 5 minutos (300 segundos)
                         alarma_sonando = false;
                         DigitalOutputDeactivate(mi_led);
                         tecla_presionada = true;
                     }
                     if (DigitalInputHasActivated(placa->tecla_cancelar)) {
-                        RelojCancelAlarm(reloj);
+                        RelojCancelAlarm(reloj);    // Apaga la alarma hasta el próximo ciclo diario
                         alarma_sonando = false;
                         DigitalOutputDeactivate(mi_led);
                         tecla_presionada = true;
@@ -374,10 +418,11 @@ int main(void) {
             }
 
             if (tecla_presionada) {
-                tiempo_antirrebote = 150;
+                tiempo_antirrebote = ANTIRREBOTE_CORTO_MS;
                 contador_AFK = 0;
             }
         }
+        // Suspende la CPU hasta el arribo de la próxima interrupción del SysTick
         __asm volatile ("wfi");
     }
 
