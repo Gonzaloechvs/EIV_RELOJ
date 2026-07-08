@@ -103,7 +103,8 @@ static const uint8_t LIMITE_MINUTOS[] = {6, 0};     /**< Límite superior BCD pa
 
 static const uint8_t LIMITE_HORAS[] = {2, 4};       /**< Límite superior BCD para la edición de horas (24) */
 
-static bool reloj_iniciado = false;                 /**< Bandera de sincronismo: habilita el avance temporal del reloj */
+static bool reloj_iniciado = false;                 /**< Bandera de sincronismo del reloj */
+static bool alarma_configurada = false;             /**< Bandera: true si el usuario guardó una hora de alarma */
 volatile static bool alarma_sonando = false;        /**< Bandera de estado del actuador de la alarma */
 
 volatile uint16_t tiempo_antirrebote = 0;           /**< Tiempo de guarda para filtrado de rebotes de teclado (ms) */
@@ -331,7 +332,9 @@ int main(void) {
                     }
                 }
                 if (DigitalInputHasActivated(placa->tecla_aceptar)) {
-                    RelojEnableAlarm(reloj);
+                    if (alarma_configurada) {
+                        RelojEnableAlarm(reloj);
+                    }
                     tecla_presionada = true;
                 } else if (DigitalInputHasActivated(placa->tecla_cancelar)) {
                     RelojDisableAlarm(reloj);
@@ -405,6 +408,7 @@ int main(void) {
                 }
                 if (DigitalInputHasActivated(placa->tecla_aceptar)) {
                     RelojSetupAlarm(reloj, alarma_en_edicion);
+                    alarma_configurada = true;
                     CambiarModo(MODO_NORMAL);
                     tecla_presionada = true;
                 }
