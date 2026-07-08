@@ -120,7 +120,7 @@ void CambiarModo(modo_t valor){
     case MODO_HORAS_ALARMA:
         DisplayFlashDigits(mi_pantalla, 0, 1, 100);
         DisplaySetDots(mi_pantalla, 0, 3);
-        break;
+        break;        
     default:
         break;
     }
@@ -186,10 +186,10 @@ int main(void) {
 
     hora_t hora_inicial = {0, 0, 0, 0, 0, 0};
     (void)RelojSetupCurrentTime(reloj, hora_inicial);
-
+    
     uint16_t contador_F1 = 0;
     uint16_t contador_F2 = 0;
-    hora_t hora_en_edicion = {0, 0, 0, 0, 0, 0}; 
+    hora_t hora_en_edicion = {0, 0, 0, 0, 0, 0};
     hora_t alarma_en_edicion = {0, 0, 0, 0, 0, 0};
 
     SysTick_Config(SystemCoreClock / 1000);
@@ -201,6 +201,7 @@ int main(void) {
 
         bool valid_time = RelojGetCurrentTime(reloj, hora_actual);
 
+        // Enrutamiento de la hora en pantalla
         if (modo == MODO_MINUTOS || modo == MODO_HORAS) {
             hora_display = hora_en_edicion;
         } else if (modo == MODO_MINUTOS_ALARMA || modo == MODO_HORAS_ALARMA) {
@@ -220,6 +221,7 @@ int main(void) {
             }
         }
 
+        // Temporizador de Inactividad (AFK)
         if (modo > MODO_NORMAL) {
             if (contador_AFK >= 30000) { // 30000 milisegundos = 30 segundos
                 CambiarModo((modo <= MODO_HORAS) ? ultimo_modo : MODO_NORMAL);
@@ -231,6 +233,7 @@ int main(void) {
             contador_AFK = 0;
         }
 
+        // Deteccion de pulso largo F1 y F2
         if (modo == MODO_NORMAL || modo == MODO_SIN_AJUSTAR) {
             if (DigitalInputGetState(placa->tecla_F1)) {
                 contador_F1++;
@@ -267,7 +270,29 @@ int main(void) {
 
             switch (modo) {
             case MODO_SIN_AJUSTAR:
-            case MODO_NORMAL:
+                break;
+             case MODO_NORMAL:
+                if (alarma_sonando) {
+                    if (DigitalInputHasActivated(placa->tecla_aceptar)) {
+                        RelojSnoozeAlarm(reloj, 300); 
+                        alarma_sonando = false;
+                        DigitalOutputDeactivate(mi_led);
+                        tecla_presionada = true;
+                    }
+                    if (DigitalInputHasActivated(placa->tecla_cancelar)) {
+                        RelojCancelAlarm(reloj);
+                        alarma_sonando = false;
+                        DigitalOutputDeactivate(mi_led);
+                        tecla_presionada = true;
+                    }
+                }
+                if (DigitalInputHasActivated(placa->tecla_aceptar)) {
+                    RelojEnableAlarm(reloj);
+                    tecla_presionada = true;
+                } else if (DigitalInputHasActivated(placa->tecla_cancelar)) {
+                    RelojDisableAlarm(reloj);
+                    tecla_presionada = true;
+                }
                 break;
             case MODO_MINUTOS:
                 if (DigitalInputHasActivated(placa->tecla_F1)) {
@@ -359,30 +384,39 @@ int main(void) {
     return 0;
 }
 
+/**
+ * @brief Interrupción del temporizador del sistema (SysTick) - Frecuencia: 1 kHz (1 ms).
+ * @note Esta ISR se encarga exclusivamente del refresco físico del hardware multiplexado
+ * y del avance de los contadores temporales, delegando la lógica pesada al lazo principal.
+ */
 void SysTick_Handler(void) {
     static uint16_t contador_puntos = 0;
 
+    // Refresca el siguiente dígito del display de 7 segmentos (Barrido Multiplexado)
     DisplayRefresh(mi_pantalla);
 
+    // Avanza la base de tiempo interna de la lógica del reloj si ya fue sincronizado
     if (reloj_iniciado) {
         RelojNewTick(reloj);
     }
 
+    // Decrementa el tiempo de bloqueo de lectura para el filtrado de rebotes mecánicos
     if (tiempo_antirrebote > 0) {
         tiempo_antirrebote--;
     }
 
+    // Incrementa el tiempo de inactividad si no se está en modo de operación normal
     if (modo > MODO_NORMAL) {
         contador_AFK++;
     } else {
         contador_AFK = 0;
     }
-    // -----------------------------
 
+    // Destello asincrónico del punto de segundos cada 500 ms (Solo en Modo Normal)
     contador_puntos = (contador_puntos + 1) % 1000;
     if (modo == MODO_NORMAL) {
         if ((contador_puntos == 0) || (contador_puntos == 500)) {
-            DisplayToggleDots(mi_pantalla, 1, 1); 
+            DisplayToggleDots(mi_pantalla, 1, 1);
         }
     }
 }
