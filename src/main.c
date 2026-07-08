@@ -41,13 +41,14 @@ SPDX-License-Identifier: MIT
 
 #include "placa.h"
 #include "reloj.h"
+#include <string.h>
 
 /* === Macros definitions ====================================================================== */
 
-#define MODO_PRUEBA 1 // Cambia a 0 cuando quieras tiempo real
+#define MODO_PRUEBA 0 // Cambia a 0 cuando quieras tiempo real
 
 #if MODO_PRUEBA == 1
-    #define TICKS_POR_SEGUNDO 1    // 100 veces más rápido (1 seg real = 100 seg simulados)
+    #define TICKS_POR_SEGUNDO 10    // 100 veces más rápido (1 seg real = 100 seg simulados)
 #else
     #define TICKS_POR_SEGUNDO 1000  // Tiempo real (1 seg real = 1 seg simulado)
 #endif
@@ -74,6 +75,8 @@ typedef enum {
 display_t mi_pantalla;
 
 volatile static modo_t modo;
+volatile static modo_t ultimo_modo = MODO_SIN_AJUSTAR;
+static bool reloj_iniciado = false;
 
 static clock_t reloj;
 
@@ -153,29 +156,43 @@ void DecrementarBCD(uint8_t numero[2], const uint8_t limite[2]) {
 /* === Public function implementation ========================================================== */
 
 int main(void) {
+
+    for (volatile uint32_t i = 0; i < 5000000; i++) {
+        __asm("nop");
+    }
+
     board_t placa = BoardCreate();
     mi_pantalla = placa->pantalla;
 
     SystemCoreClockUpdate();
-    SysTick_Config(SystemCoreClock / 1000);
 
     reloj = RelojCreate(TICKS_POR_SEGUNDO, SonarAlarma);
+    CambiarModo(MODO_SIN_AJUSTAR);
 
     hora_t hora_inicial = {0, 0, 0, 0, 0, 0};
     (void)RelojSetupCurrentTime(reloj, hora_inicial);
 
-    bool modo_edicion = false;
     uint16_t tiempo_antirrebote = 0;
+    uint16_t contador_F1 = 0;
+
+    hora_t hora_en_edicion = {0, 0, 0, 0, 0, 0}; 
+
+    SysTick_Config(SystemCoreClock / 1000);
+    __enable_irq();
 
     while (true) {
         hora_t hora_actual;
         uint8_t hora_display[4];
-    
-        if (RelojGetCurrentTime(reloj, hora_actual)) {
-            hora_display[0] = hora_actual[0];
-            hora_display[1] = hora_actual[1];
-            hora_display[2] = hora_actual[2];
-            hora_display[3] = hora_actual[3];
+
+        bool valid_time = RelojGetCurrentTime(reloj, hora_actual);
+
+        if (modo == MODO_MINUTOS || modo == MODO_HORAS) {
+            memcpy(hora_display, hora_en_edicion, 4);
+        } else if (valid_time) {
+            memcpy(hora_display, hora_actual, 4);
+        }
+
+        if (valid_time || modo == MODO_MINUTOS || modo == MODO_HORAS) {
             DisplayWriteBCD(placa->pantalla, hora_display, sizeof(hora_display));
         }
 
@@ -183,59 +200,80 @@ int main(void) {
             tiempo_antirrebote--; 
         }
 
+        if (modo == MODO_NORMAL || modo == MODO_SIN_AJUSTAR) {
+            if (DigitalInputGetState(placa->tecla_F1)) {
+                contador_F1++;
+                if (contador_F1 >= 3000) { 
+                    ultimo_modo = modo;
+                    CambiarModo(MODO_MINUTOS);
+                    tiempo_antirrebote = 300; 
+                    contador_F1 = 0;
+
+                    if (valid_time) {
+                        memcpy(hora_en_edicion, hora_actual, sizeof(hora_t));
+                    } else {
+                        memset(hora_en_edicion, 0, sizeof(hora_t));
+                    }
+                }
+            } else {
+                contador_F1 = 0;
+            }
+        }
+
         if (tiempo_antirrebote == 0) {
             bool tecla_presionada = false;
 
-            if (DigitalInputHasActivated(placa->tecla_aceptar)) {
-                modo_edicion = !modo_edicion;
-                if (modo_edicion) {
-                    modo = MODO_HORAS; // O el estado de edición que uses
-                    DisplayFlashDigits(placa->pantalla, 0, 3, 100);
-                } else {
-                    modo = MODO_NORMAL;
-                    DisplayFlashDigits(placa->pantalla, 0, 3, 0);
-                }
-                tecla_presionada = true;
-            }
-
-            if (modo_edicion) {
-                uint8_t horas[2] = {hora_actual[0], hora_actual[1]};
-                uint8_t minutos[2] = {hora_actual[2], hora_actual[3]};
-                bool cambio = false;
-
+            switch (modo) {
+            case MODO_SIN_AJUSTAR:
+            case MODO_NORMAL:
+                break;
+            case MODO_MINUTOS:
                 if (DigitalInputHasActivated(placa->tecla_F1)) {
-                    IncrementarBCD(minutos, LIMITE_MINUTOS);
-                    hora_actual[2] = minutos[0];
-                    hora_actual[3] = minutos[1];
-                    cambio = true;
-                }
-                if (DigitalInputHasActivated(placa->tecla_F2)) {
-                    DecrementarBCD(minutos, LIMITE_MINUTOS);
-                    hora_actual[2] = minutos[0];
-                    hora_actual[3] = minutos[1];
-                    cambio = true;
-                }
-                if (DigitalInputHasActivated(placa->tecla_F3)) {
-                    IncrementarBCD(horas, LIMITE_HORAS);
-                    hora_actual[0] = horas[0];
-                    hora_actual[1] = horas[1];
-                    cambio = true;
-                }
-                if (DigitalInputHasActivated(placa->tecla_F4)) {
-                    DecrementarBCD(horas, LIMITE_HORAS);
-                    hora_actual[0] = horas[0];
-                    hora_actual[1] = horas[1];
-                    cambio = true;
-                }
-
-                if (cambio) {
-                    RelojSetupCurrentTime(reloj, hora_actual);
+                    IncrementarBCD(&hora_en_edicion[2], LIMITE_MINUTOS);
                     tecla_presionada = true;
                 }
+                if (DigitalInputHasActivated(placa->tecla_F2)) {
+                    DecrementarBCD(&hora_en_edicion[2], LIMITE_MINUTOS);
+                    tecla_presionada = true;
+                }
+                if (DigitalInputHasActivated(placa->tecla_aceptar)) {
+                    CambiarModo(MODO_HORAS);
+                    tecla_presionada = true;
+                }
+                if (DigitalInputHasActivated(placa->tecla_cancelar)) {
+                    CambiarModo(ultimo_modo);
+                    tecla_presionada = true;
+                }
+                break;
+            case MODO_HORAS:
+                if (DigitalInputHasActivated(placa->tecla_F3)) {
+                    IncrementarBCD(&hora_en_edicion[0], LIMITE_HORAS);
+                    tecla_presionada = true;
+                }
+                if (DigitalInputHasActivated(placa->tecla_F4)) {
+                    DecrementarBCD(&hora_en_edicion[0], LIMITE_HORAS);
+                    tecla_presionada = true;
+                }
+                if (DigitalInputHasActivated(placa->tecla_aceptar)) {
+                    RelojSetupCurrentTime(reloj, hora_en_edicion);
+                    reloj_iniciado = true;
+                    CambiarModo(MODO_NORMAL);
+                    tecla_presionada = true;
+                }
+                if (DigitalInputHasActivated(placa->tecla_cancelar)) {
+                    CambiarModo(ultimo_modo);
+                    tecla_presionada = true;
+                }
+                break;
+            case MODO_MINUTOS_ALARMA:
+            case MODO_HORAS_ALARMA:
+                break;
+            default:
+                break;
             }
-            
+
             if (tecla_presionada) {
-                tiempo_antirrebote = 500; 
+                tiempo_antirrebote = 150;
             }
         }
         __asm volatile ("wfi");
@@ -249,11 +287,12 @@ void SysTick_Handler(void) {
 
     DisplayRefresh(mi_pantalla);
 
-    RelojNewTick(reloj);
+    if (reloj_iniciado) {
+        RelojNewTick(reloj);
+    }
 
     contador_puntos = (contador_puntos + 1) % 1000;
     if (modo == MODO_NORMAL) {
-        // Cada 500 ms conmuta el estado de los puntos del centro
         if ((contador_puntos == 0) || (contador_puntos == 500)) {
             DisplayToggleDots(mi_pantalla, 1, 1); 
         }
