@@ -26,25 +26,19 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 SPDX-License-Identifier: MIT
 *************************************************************************************************/
 
-/** @file main.c
- ** @brief Programa principal e inicialización del sistema operativo FreeRTOS (Módulo Display).
+/** @file tareas.c
+ ** @brief Implementación de las rutinas de tareas cooperativas y expropiativas de FreeRTOS.
  **/
 
 /* === Headers files inclusions ================================================================ */
 
-#include <stdint.h>
-#include <stdbool.h>
-
-/* Librerías del RTOS siempre antes que las de la aplicación */
-#include "FreeRTOS.h"
-#include "task.h"
-#include "semphr.h"
-
-/* Librerías de la capa de abstracción y de tareas */
-#include "placa.h"
 #include "tareas.h"
+#include "placa.h"
 
 /* === Macros definitions ====================================================================== */
+
+/** Período en milisegundos para el refresco del multiplexado */
+#define PERIODO_REFRESCO_MS 2
 
 /* === Private data type declarations ========================================================== */
 
@@ -52,50 +46,25 @@ SPDX-License-Identifier: MIT
 
 /* === Private variable definitions ============================================================ */
 
-/** Argumentos estáticos para pasar a la tarea de display sin perder alcance (scope) */
-static display_task_args_t args_display;
-
 /* === Public variable definition  ============================================================= */
 
 /* === Private function definitions ============================================================ */
 
 /* === Public function implementation ========================================================== */
 
-int main(void) {
-    /* 1. Inicialización de la placa y periféricos */
-    board_t placa = BoardCreate();
-    
-    /* Sincronización del reloj interno para evitar que el PLL altere los Ticks de FreeRTOS */
-    SystemCoreClockUpdate(); 
+void TareaDisplay(void * parametros) {
+    display_task_args_t * args = (display_task_args_t *) parametros;
+    TickType_t xLastWakeTime;
 
-    /* 2. Creación de Objetos de Comunicación y Sincronización (IPC) */
-    args_display.mutex = xSemaphoreCreateMutex();
-    args_display.display = placa->pantalla;
+    xLastWakeTime = xTaskGetTickCount();
 
-    /* Escritura de prueba en el display para validar el inicio y el barrido constante */
-    uint8_t hora_de_prueba[4] = {1, 2, 3, 4}; 
-    DisplayWriteBCD(placa->pantalla, hora_de_prueba, 4); 
-
-    /* 3. Registro de las Tareas (Solo si los objetos IPC se crearon con éxito en memoria) */
-    if (args_display.mutex != NULL) {
+    while (true) {
+        if (xSemaphoreTake(args->mutex, portMAX_DELAY) == pdTRUE) {
+            DisplayRefresh(args->display);
+            xSemaphoreGive(args->mutex);
+        }
         
-        /* Tarea de Display: Prioridad Máxima (configMAX_PRIORITIES - 1) */
-        xTaskCreate(
-            TareaDisplay, 
-            "Display", 
-            configMINIMAL_STACK_SIZE, 
-            (void *) &args_display, 
-            (configMAX_PRIORITIES - 1), 
-            NULL
-        );
-        
-        /* 4. Lanzamiento del Planificador Expropiativo */
-        vTaskStartScheduler();
-    }
-
-    /* Bucle infinito de seguridad. El hardware nunca debería llegar a esta línea. */
-    for (;;) {
-        // Fallo crítico: No hubo suficiente memoria heap para iniciar el scheduler
+        vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(PERIODO_REFRESCO_MS));
     }
 }
 

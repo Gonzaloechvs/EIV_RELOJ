@@ -1,4 +1,4 @@
-MODULES = hal
+MODULES = hal module/freertos
 BOARD ?= edu-ciaa-nxp
 VERBOSE=n
 MUJU ?= ./muju
