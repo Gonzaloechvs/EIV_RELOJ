@@ -60,6 +60,17 @@ typedef struct {
     SemaphoreHandle_t mutex;
 } display_task_args_t;
 
+/** @brief Enumeración de los eventos de teclado generados por la interfaz */
+typedef enum {
+    TECLA_NINGUNA = 0,
+    TECLA_F1,
+    TECLA_F2,
+    TECLA_F3,
+    TECLA_F4,
+    TECLA_ACEPTAR,
+    TECLA_CANCELAR
+} teclas_enum_t;
+
 /* === Public variable declarations ================================================================================ */
 
 /* === Public function declarations ================================================================================ */
@@ -69,6 +80,18 @@ typedef struct {
  * @param parametros Puntero a la estructura display_task_args_t.
  */
 void TareaDisplay(void * parametros);
+
+/**
+ * @brief Tarea encargada de escanear los botones físicos y aplicar el antirrebote.
+ * @param parametros Puntero al descriptor de hardware board_t.
+ */
+void TareaTeclado(void * parametros);
+
+/**
+ * @brief Tarea temporal para probar la recepción de teclas y efectos visuales.
+ * @param parametros Puntero a la estructura display_task_args_t.
+ */
+void TareaPrueba(void * parametros);
 
 /* === End of conditional blocks =================================================================================== */
 

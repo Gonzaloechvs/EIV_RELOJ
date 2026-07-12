@@ -27,7 +27,7 @@ SPDX-License-Identifier: MIT
 *************************************************************************************************/
 
 /** @file main.c
- ** @brief Programa principal e inicialización del sistema operativo FreeRTOS (Módulo Display).
+ ** @brief Programa principal e inicialización del sistema operativo FreeRTOS.
  **/
 
 /* === Headers files inclusions ================================================================ */
@@ -39,12 +39,16 @@ SPDX-License-Identifier: MIT
 #include "FreeRTOS.h"
 #include "task.h"
 #include "semphr.h"
+#include "queue.h"
 
 /* Librerías de la capa de abstracción y de tareas */
 #include "placa.h"
 #include "tareas.h"
 
 /* === Macros definitions ====================================================================== */
+
+/** Cantidad máxima de eventos de tecla que la cola puede almacenar sin procesar */
+#define EVENTOS_TECLADO_MAX 10
 
 /* === Private data type declarations ========================================================== */
 
@@ -57,6 +61,11 @@ static display_task_args_t args_display;
 
 /* === Public variable definition  ============================================================= */
 
+/** * Cola pública de eventos de teclado.
+ * Se define aquí pero se utiliza con 'extern' dentro de tareas.c
+ */
+QueueHandle_t xColaTeclas = NULL;
+
 /* === Private function definitions ============================================================ */
 
 /* === Public function implementation ========================================================== */
@@ -66,29 +75,53 @@ int main(void) {
     board_t placa = BoardCreate();
     
     /* Sincronización del reloj interno para evitar que el PLL altere los Ticks de FreeRTOS */
-    SystemCoreClockUpdate(); 
+    SystemCoreClockUpdate();
 
     /* 2. Creación de Objetos de Comunicación y Sincronización (IPC) */
     args_display.mutex = xSemaphoreCreateMutex();
     args_display.display = placa->pantalla;
+    
+    // CREAR LA COLA: Espacio para 10 eventos de tipo 'teclas_enum_t'
+    xColaTeclas = xQueueCreate(10, sizeof(teclas_enum_t));
 
     /* Escritura de prueba en el display para validar el inicio y el barrido constante */
-    uint8_t hora_de_prueba[4] = {1, 2, 3, 4}; 
-    DisplayWriteBCD(placa->pantalla, hora_de_prueba, 4); 
+    uint8_t hora_de_prueba[4] = {1, 2, 3, 4};
+    DisplayWriteBCD(placa->pantalla, hora_de_prueba, 4);
 
     /* 3. Registro de las Tareas (Solo si los objetos IPC se crearon con éxito en memoria) */
-    if (args_display.mutex != NULL) {
+    if ((args_display.mutex != NULL) && (xColaTeclas != NULL)) {
+        //Si no se tomo el mutex y si hay una cola de las teclas
         
         /* Tarea de Display: Prioridad Máxima (configMAX_PRIORITIES - 1) */
+        // Este es la maxima prioridad ya que se debe tener en cuenta para el manejo del display
         xTaskCreate(
-            TareaDisplay, 
-            "Display", 
-            configMINIMAL_STACK_SIZE, 
-            (void *) &args_display, 
-            (configMAX_PRIORITIES - 1), 
+            TareaDisplay,
+            "Display",
+            configMINIMAL_STACK_SIZE,
+            (void *) &args_display,
+            (configMAX_PRIORITIES - 1),
             NULL
         );
-        
+        /* Tarea del Teclado: Prioridad Media-Alta (configMAX_PRIORITIES - 2) */
+        // Segunda prioridad, solo si es que se preciono una tecla se atiende
+        // Siempre tendra prioridad el display sobre el teclado
+        xTaskCreate(
+            TareaTeclado,
+            "Teclado",
+            configMINIMAL_STACK_SIZE,
+            (void *) placa,
+            (configMAX_PRIORITIES - 2), // Prioridad un poco menor que el display
+            NULL
+        );
+        // Le pasamos args_display porque necesita usar el display y el mutex
+        xTaskCreate(
+            TareaPrueba, 
+            "LogicaPrueba", 
+            configMINIMAL_STACK_SIZE, 
+            (void *) &args_display, 
+            (configMAX_PRIORITIES - 3), // Prioridad baja
+            NULL
+        );
         /* 4. Lanzamiento del Planificador Expropiativo */
         vTaskStartScheduler();
     }
