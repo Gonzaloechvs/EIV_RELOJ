@@ -54,12 +54,6 @@ extern "C" {
 
 /* === Public data type declarations =============================================================================== */
 
-/** @brief Estructura para pasar los argumentos a la tarea del display */
-typedef struct {
-    display_t display;
-    SemaphoreHandle_t mutex;
-} display_task_args_t;
-
 /** @brief Enumeración de los eventos de teclado generados por la interfaz */
 typedef enum {
     TECLA_NINGUNA = 0,
@@ -70,6 +64,23 @@ typedef enum {
     TECLA_ACEPTAR,
     TECLA_CANCELAR
 } teclas_enum_t;
+
+/** @brief Enumeración de los estados o modos de la Máquina de Estados */
+typedef enum {
+    MODO_SIN_AJUSTAR,
+    MODO_NORMAL,
+    MODO_MINUTOS,
+    MODO_HORAS,
+    MODO_MINUTOS_ALARMA,
+    MODO_HORAS_ALARMA
+} modo_reloj_t;
+
+/** @brief Estructura para pasar los argumentos a la tarea del display */
+typedef struct {
+    display_t display;
+    SemaphoreHandle_t mutex;
+    modo_reloj_t modo;
+} display_task_args_t;
 
 /* === Public variable declarations ================================================================================ */
 
@@ -88,10 +99,10 @@ void TareaDisplay(void * parametros);
 void TareaTeclado(void * parametros);
 
 /**
- * @brief Tarea temporal para probar la recepción de teclas y efectos visuales.
+ * @brief Tarea encargada del manejo de tiempo y maquina de estados del reloj.
  * @param parametros Puntero a la estructura display_task_args_t.
  */
-void TareaPrueba(void * parametros);
+void TareaReloj(void * parametros);
 
 /* === End of conditional blocks =================================================================================== */
 

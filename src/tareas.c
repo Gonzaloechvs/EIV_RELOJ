@@ -45,6 +45,10 @@ SPDX-License-Identifier: MIT
 
 /* === Private data type declarations ========================================================== */
 
+/* Limites para el reloj */
+static const uint8_t LIMITE_MINUTOS[2] = {6, 0}; // Límite exclusivo 60
+static const uint8_t LIMITE_HORAS[2]   = {2, 4}; // Límite exclusivo 24
+
 /* === Private function declarations =========================================================== */
 
 /* === Private variable definitions ============================================================ */
@@ -53,6 +57,88 @@ SPDX-License-Identifier: MIT
 extern QueueHandle_t xColaTeclas;
 
 /* === Public variable definition  ============================================================= */
+
+static void CambiarModo(display_task_args_t * args, modo_reloj_t nuevo_modo) {
+    args->modo = nuevo_modo;
+
+    // Resetear efectos del display para configurarlos limpianente
+    DisplayFlashDigits(args->display, 0, 3, 0); // Desactiva parpadeos
+    DisplayClearDots(args->display, 0, 3);      // Apaga todos los puntos
+    
+    switch (nuevo_modo) {
+    case MODO_SIN_AJUSTAR:
+        DisplayFlashDigits(args->display, 0, 3, 100);
+        DisplaySetDots(args->display, 1, 1);
+        break;
+    case MODO_NORMAL:
+        DisplayFlashDigits(args->display, 0, 0, 0);
+        DisplayClearDots(args->display, 0, 3);
+        break;
+    case MODO_MINUTOS:
+        DisplayFlashDigits(args->display, 2, 3, 100);
+        DisplayClearDots(args->display, 0, 3);
+        break;
+    case MODO_HORAS:
+        DisplayFlashDigits(args->display, 0, 1, 100);
+        DisplayClearDots(args->display, 0, 3);
+        break;
+    case MODO_MINUTOS_ALARMA:
+        DisplayFlashDigits(args->display, 2, 3, 100);
+        DisplaySetDots(args->display, 0, 3);
+        break;
+    case MODO_HORAS_ALARMA:
+        DisplayFlashDigits(args->display, 0, 1, 100);
+        DisplaySetDots(args->display, 0, 3);
+        break;        
+    default:
+        break;
+    }
+
+}
+
+/**
+ * @brief Incrementa un valor numérico representado en formato BCD de dos dígitos.
+ * @param numero Arreglo de 2 bytes [decenas, unidades] a incrementar.
+ * @param limite Arreglo de 2 bytes [decenas, unidades] que representa el límite superior exclusivo.
+ */
+void IncrementarBCD(uint8_t numero[2], const uint8_t limite[2]) {
+    numero[1]++;
+    if (numero[1] > 9) {
+        numero[0]++;
+        numero[1] = 0;
+    }
+    if((numero[1] == limite[1]) && (numero[0] == limite[0])) {
+        numero[0] = 0;
+        numero[1] = 0;
+    }
+}
+
+/**
+ * @brief Decrementa un valor numérico representado en formato BCD de dos dígitos.
+ * @param numero Arreglo de 2 bytes [decenas, unidades] a decrementar.
+ * @param limite Arreglo de 2 bytes [decenas, unidades] que define el valor máximo al desbordar por cero.
+ */
+void DecrementarBCD(uint8_t numero[2], const uint8_t limite[2]) {
+    // Chequea si estamos en el mínimo (0, 0)
+    if ((numero[0] == 0) && (numero[1] == 0)) {
+        // Ir al máximo válido antes del límite
+        if (limite[1] > 0) {
+            numero[0] = limite[0];
+            numero[1] = limite[1] - 1;
+        } else {
+            numero[0] = limite[0] - 1;
+            numero[1] = 9;
+        }
+    } else {
+        // Decrementar normalmente
+        if (numero[1] == 0) {
+            numero[0]--;
+            numero[1] = 9;
+        } else {
+            numero[1]--;
+        }
+    }
+}
 
 /* === Private function definitions ============================================================ */
 
@@ -153,53 +239,94 @@ void TareaTeclado(void * parametros) {
     }
 }
 
-void TareaPrueba(void * parametros) {
+void TareaReloj(void * parametros) {
     display_task_args_t * args = (display_task_args_t *) parametros;
-
     teclas_enum_t tecla_recibida;
 
-    // Variables locales, asi no se necesita el mutex
-    uint8_t hora_bcd[4] = {1, 2, 3, 4};
-    uint16_t parpadeo = 0;
+    // Hora temporal(formato BCD: {hora_d, hora_u, min_d, min_u})
+    uint8_t hora_bcd[4] = {0, 0, 0, 0}; 
+    uint8_t hora_alarma_bcd[4] = {0, 0, 0, 0};
+
+    // --- CONFIGURACIÓN INICIAL ---
+    xSemaphoreTake(args->mutex, portMAX_DELAY);
+    DisplayWriteBCD(args->display, hora_bcd, 4);
+    CambiarModo(args, MODO_SIN_AJUSTAR);
+    xSemaphoreGive(args->mutex);
 
     while (true) {
-        // La tarea se bloquea aquí hasta que llegue un dato a la cola
+        // Dormimos la tarea hasta que el usuario presione algo
         if (xQueueReceive(xColaTeclas, &tecla_recibida, portMAX_DELAY) == pdTRUE) {
-            // Se recibe la cola de los eventos de las teclas
-            // Se pide el Mutex para no pisar la TareaDisplay
-            if (xSemaphoreTake(args->mutex, portMAX_DELAY) == pdTRUE) {
-                switch (tecla_recibida) {
-                    case TECLA_ACEPTAR:
-                        // Conmuta los 4 puntos (del índice 0 al 3)
-                        DisplayToggleDots(args->display, 0, 3);
-                        break;
-                    case TECLA_CANCELAR:
-                        // Alterna entre apagar el parpadeo (0) y encenderlo
-                        parpadeo = (parpadeo == 0) ? 50 : 0;
-                        DisplayFlashDigits(args->display, 0, 3, parpadeo);
-                        break;
-                    case TECLA_F4: // F4 incrementa el dígito 0
-                        hora_bcd[0] = (hora_bcd[0] >= 9) ? 0 : hora_bcd[0] + 1;
+
+            xSemaphoreTake(args->mutex, portMAX_DELAY);
+            // EVALUAMOS EL ESTADO ACTUAL
+            switch (args->modo) {
+                case MODO_SIN_AJUSTAR:
+                case MODO_NORMAL:
+                    if (tecla_recibida == TECLA_F1) {
+                        CambiarModo(args, MODO_MINUTOS);
                         DisplayWriteBCD(args->display, hora_bcd, 4);
-                        break;
-                    case TECLA_F3: // F3 incrementa el dígito 1
-                        hora_bcd[1] = (hora_bcd[1] >= 9) ? 0 : hora_bcd[1] + 1;
+                    }
+                    if (tecla_recibida == TECLA_F2) {
+                        CambiarModo(args, MODO_MINUTOS_ALARMA);
+                        DisplayWriteBCD(args->display, hora_alarma_bcd, 4);
+                    }
+                    break;
+                case MODO_MINUTOS:
+                    if (tecla_recibida == TECLA_ACEPTAR) {
+                        CambiarModo(args, MODO_HORAS);
+                    }
+                    else if (tecla_recibida == TECLA_F4) {
+                        IncrementarBCD(&hora_bcd[2], LIMITE_MINUTOS);
                         DisplayWriteBCD(args->display, hora_bcd, 4);
-                        break;
-                    case TECLA_F2: // F2 incrementa el dígito 2
-                        hora_bcd[2] = (hora_bcd[2] >= 9) ? 0 : hora_bcd[2] + 1;
+                    }
+                    else if (tecla_recibida == TECLA_F3) {
+                        DecrementarBCD(&hora_bcd[2], LIMITE_MINUTOS);
                         DisplayWriteBCD(args->display, hora_bcd, 4);
-                        break;
-                    case TECLA_F1: // F1 incrementa el dígito 3
-                        hora_bcd[3] = (hora_bcd[3] >= 9) ? 0 : hora_bcd[3] + 1;
+                    }
+                    break;
+                case MODO_HORAS:
+                    if (tecla_recibida == TECLA_F4) {
+                        IncrementarBCD(&hora_bcd[0], LIMITE_HORAS);
                         DisplayWriteBCD(args->display, hora_bcd, 4);
-                        break;
-                    default:
-                        break;
-                }
-                // Soltamos el mutex de la pantalla
-                xSemaphoreGive(args->mutex);
+                    }
+                    else if (tecla_recibida == TECLA_F3) {
+                        DecrementarBCD(&hora_bcd[0], LIMITE_HORAS);
+                        DisplayWriteBCD(args->display, hora_bcd, 4);
+                    }
+                    else if (tecla_recibida == TECLA_ACEPTAR || tecla_recibida == TECLA_CANCELAR) {
+                        CambiarModo(args, MODO_NORMAL);
+                        DisplayWriteBCD(args->display, hora_bcd, 4);
+                    }
+                    break;
+                case MODO_MINUTOS_ALARMA:
+                    if (tecla_recibida == TECLA_ACEPTAR) {
+                        CambiarModo(args, MODO_HORAS_ALARMA);
+                    }
+                    else if (tecla_recibida == TECLA_F4) {
+                        IncrementarBCD(&hora_alarma_bcd[2], LIMITE_MINUTOS);
+                        DisplayWriteBCD(args->display, hora_alarma_bcd, 4);
+                    }
+                    else if (tecla_recibida == TECLA_F3) {
+                        DecrementarBCD(&hora_alarma_bcd[2], LIMITE_MINUTOS);
+                        DisplayWriteBCD(args->display, hora_alarma_bcd, 4);
+                    }
+                    break;
+                case MODO_HORAS_ALARMA:
+                    if (tecla_recibida == TECLA_F4) {
+                        IncrementarBCD(&hora_alarma_bcd[0], LIMITE_HORAS);
+                        DisplayWriteBCD(args->display, hora_alarma_bcd, 4);
+                    }
+                    else if (tecla_recibida == TECLA_F3) {
+                        DecrementarBCD(&hora_alarma_bcd[0], LIMITE_HORAS);
+                        DisplayWriteBCD(args->display, hora_alarma_bcd, 4);
+                    }
+                    else if (tecla_recibida == TECLA_ACEPTAR || tecla_recibida == TECLA_CANCELAR) {
+                        CambiarModo(args, MODO_NORMAL);
+                        DisplayWriteBCD(args->display, hora_bcd, 4);
+                    }
+                    break;
             }
+            xSemaphoreGive(args->mutex);
         }
     }
 }

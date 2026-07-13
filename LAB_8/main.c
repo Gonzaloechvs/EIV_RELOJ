@@ -259,7 +259,7 @@ int main(void) {
             
             hora_t alarma_temp;
             if (RelojGetAlarm(reloj, alarma_temp)) {
-                DisplaySetDots(mi_pantalla, 3, 3); // Punto del dígito 0 indica alarma encendida
+                DisplaySetDots(mi_pantalla, 3, 3); // Punto del dígito 3 indica alarma encendida
             } else if (modo != MODO_MINUTOS_ALARMA && modo != MODO_HORAS_ALARMA) {
                 DisplayClearDots(mi_pantalla, 3, 3);
             }
@@ -342,11 +342,11 @@ int main(void) {
                 }
                 break;
             case MODO_MINUTOS:
-                if (DigitalInputHasActivated(placa->tecla_F3)) {
+                if (DigitalInputHasActivated(placa->tecla_F4)) {
                     IncrementarBCD(&hora_en_edicion[2], LIMITE_MINUTOS);
                     tecla_presionada = true;
                 }
-                if (DigitalInputHasActivated(placa->tecla_F4)) {
+                if (DigitalInputHasActivated(placa->tecla_F3)) {
                     DecrementarBCD(&hora_en_edicion[2], LIMITE_MINUTOS);
                     tecla_presionada = true;
                 }
@@ -360,11 +360,11 @@ int main(void) {
                 }
                 break;
             case MODO_HORAS:
-                if (DigitalInputHasActivated(placa->tecla_F3)) {
+                if (DigitalInputHasActivated(placa->tecla_F4)) {
                     IncrementarBCD(&hora_en_edicion[0], LIMITE_HORAS);
                     tecla_presionada = true;
                 }
-                if (DigitalInputHasActivated(placa->tecla_F4)) {
+                if (DigitalInputHasActivated(placa->tecla_F3)) {
                     DecrementarBCD(&hora_en_edicion[0], LIMITE_HORAS);
                     tecla_presionada = true;
                 }
@@ -380,11 +380,11 @@ int main(void) {
                 }
                 break;
             case MODO_MINUTOS_ALARMA:
-                if (DigitalInputHasActivated(placa->tecla_F3)) {
+                if (DigitalInputHasActivated(placa->tecla_F4)) {
                     IncrementarBCD(&alarma_en_edicion[2], LIMITE_MINUTOS);
                     tecla_presionada = true;
                 }
-                if (DigitalInputHasActivated(placa->tecla_F4)) {
+                if (DigitalInputHasActivated(placa->tecla_F3)) {
                     DecrementarBCD(&alarma_en_edicion[2], LIMITE_MINUTOS);
                     tecla_presionada = true;
                 }
@@ -398,11 +398,11 @@ int main(void) {
                 }
                 break;
             case MODO_HORAS_ALARMA:
-                if (DigitalInputHasActivated(placa->tecla_F3)) {
+                if (DigitalInputHasActivated(placa->tecla_F4)) {
                     IncrementarBCD(&alarma_en_edicion[0], LIMITE_HORAS);
                     tecla_presionada = true;
                 }
-                if (DigitalInputHasActivated(placa->tecla_F4)) {
+                if (DigitalInputHasActivated(placa->tecla_F3)) {
                     DecrementarBCD(&alarma_en_edicion[0], LIMITE_HORAS);
                     tecla_presionada = true;
                 }

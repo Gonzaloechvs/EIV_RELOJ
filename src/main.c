@@ -113,12 +113,13 @@ int main(void) {
             (configMAX_PRIORITIES - 2), // Prioridad un poco menor que el display
             NULL
         );
+        /* Tarea del Reloj: Prioridad Media (configMAX_PRIORITIES - 2) */
         // Le pasamos args_display porque necesita usar el display y el mutex
         xTaskCreate(
-            TareaPrueba, 
-            "LogicaPrueba", 
-            configMINIMAL_STACK_SIZE, 
-            (void *) &args_display, 
+            TareaReloj,
+            "LogicaPrueba",
+            configMINIMAL_STACK_SIZE,
+            (void *) &args_display,
             (configMAX_PRIORITIES - 3), // Prioridad baja
             NULL
         );
