@@ -56,9 +56,10 @@ extern "C" {
 
 /** @brief Enumeración de los eventos de teclado generados por la interfaz */
 typedef enum {
-    TECLA_NINGUNA = 0,
     TECLA_F1,
+    TECLA_F1_LARGA,
     TECLA_F2,
+    TECLA_F2_LARGA,
     TECLA_F3,
     TECLA_F4,
     TECLA_ACEPTAR,

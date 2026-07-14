@@ -40,8 +40,11 @@ SPDX-License-Identifier: MIT
 /** Período en milisegundos para el refresco del multiplexado */
 #define PERIODO_REFRESCO_MS 2
 
-/** Tiempo de espera en milisegundos para filtrar el rebote mecánico de teclas */
-#define TIEMPO_ANTIRREBOTE_MS 50
+/** @brief Período de muestreo de la tarea del teclado en milisegundos. */
+#define PERIODO_TECLADO_MS 50
+
+/** @brief Cantidad de ciclos de muestreo para registrar una pulsación larga (3 segundos). */
+#define TICKS_3_SEGUNDOS   (3000 / PERIODO_TECLADO_MS)
 
 /* === Private data type declarations ========================================================== */
 
@@ -163,79 +166,50 @@ void TareaDisplay(void * parametros) {
 /* Reemplaza o agrega tu TareaTeclado en la sección de implementaciones */
 void TareaTeclado(void * parametros) {
     board_t placa = (board_t) parametros;
-    teclas_enum_t tecla_presionada;
+
+    uint16_t contador_f1 = 0;
+    uint16_t contador_f2 = 0;
 
     while (true) {
-        tecla_presionada = TECLA_NINGUNA;
-
-        /* --- Lectura de la Tecla ACEPTAR --- */
-        if (DigitalInputGetState(placa->tecla_aceptar)) {
-            vTaskDelay(pdMS_TO_TICKS(TIEMPO_ANTIRREBOTE_MS));
-            if (DigitalInputGetState(placa->tecla_aceptar)) {
-                tecla_presionada = TECLA_ACEPTAR;
-                while(DigitalInputGetState(placa->tecla_aceptar)) {
-                    vTaskDelay(pdMS_TO_TICKS(TIEMPO_ANTIRREBOTE_MS));
-                }
+        /* --- TECLAS DE PULSACIÓN LARGA (F1 y F2) --- */
+        if (DigitalInputGetState(placa->tecla_F1)) {
+            contador_f1++;
+            if (contador_f1 == TICKS_3_SEGUNDOS) {
+                teclas_enum_t evento = TECLA_F1_LARGA;
+                xQueueSend(xColaTeclas, &evento, 0);
             }
+        } else {
+            contador_f1 = 0; // Se soltó la tecla, reiniciamos el contador
         }
-        /* --- Lectura de la Tecla CANCELAR --- */
-        else if (DigitalInputGetState(placa->tecla_cancelar)) {
-            vTaskDelay(pdMS_TO_TICKS(TIEMPO_ANTIRREBOTE_MS));
-            if (DigitalInputGetState(placa->tecla_cancelar)) {
-                tecla_presionada = TECLA_CANCELAR;
-                while(DigitalInputGetState(placa->tecla_cancelar)) {
-                    vTaskDelay(pdMS_TO_TICKS(TIEMPO_ANTIRREBOTE_MS));
-                }
+        if (DigitalInputGetState(placa->tecla_F2)) {
+            contador_f2++;
+            if (contador_f2 == TICKS_3_SEGUNDOS) {
+                teclas_enum_t evento = TECLA_F2_LARGA;
+                xQueueSend(xColaTeclas, &evento, 0);
             }
-        }
-        /* --- Lectura de la Tecla F1 --- */
-        else if (DigitalInputGetState(placa->tecla_F1)) {
-            vTaskDelay(pdMS_TO_TICKS(TIEMPO_ANTIRREBOTE_MS));
-            if (DigitalInputGetState(placa->tecla_F1)) {
-                tecla_presionada = TECLA_F1;
-                while(DigitalInputGetState(placa->tecla_F1)) {
-                    vTaskDelay(pdMS_TO_TICKS(TIEMPO_ANTIRREBOTE_MS));
-                }
-            }
-        }
-        /* --- Lectura de la Tecla F2 --- */
-        else if (DigitalInputGetState(placa->tecla_F2)) {
-            vTaskDelay(pdMS_TO_TICKS(TIEMPO_ANTIRREBOTE_MS));
-            if (DigitalInputGetState(placa->tecla_F2)) {
-                tecla_presionada = TECLA_F2;
-                while(DigitalInputGetState(placa->tecla_F2)) {
-                    vTaskDelay(pdMS_TO_TICKS(TIEMPO_ANTIRREBOTE_MS));
-                }
-            }
-        }
-        /* --- Lectura de la Tecla F3 --- */
-        else if (DigitalInputGetState(placa->tecla_F3)) {
-            vTaskDelay(pdMS_TO_TICKS(TIEMPO_ANTIRREBOTE_MS));
-            if (DigitalInputGetState(placa->tecla_F3)) {
-                tecla_presionada = TECLA_F3;
-                while(DigitalInputGetState(placa->tecla_F3)) {
-                    vTaskDelay(pdMS_TO_TICKS(TIEMPO_ANTIRREBOTE_MS));
-                }
-            }
-        }
-        /* --- Lectura de la Tecla F4 --- */
-        else if (DigitalInputGetState(placa->tecla_F4)) {
-            vTaskDelay(pdMS_TO_TICKS(TIEMPO_ANTIRREBOTE_MS));
-            if (DigitalInputGetState(placa->tecla_F4)) {
-                tecla_presionada = TECLA_F4;
-                while(DigitalInputGetState(placa->tecla_F4)) {
-                    vTaskDelay(pdMS_TO_TICKS(TIEMPO_ANTIRREBOTE_MS));
-                }
-            }
+        } else {
+            contador_f2 = 0; // Se soltó la tecla, reiniciamos el contador
         }
 
-        /* Si se detectó alguna tecla, la metemos en la cola de comunicación */
-        if (tecla_presionada != TECLA_NINGUNA) {
-            xQueueSend(xColaTeclas, &tecla_presionada, 0);
+        /* --- TECLAS DE PULSACIÓN CORTA --- */
+        if (DigitalInputHasActivated(placa->tecla_F3)) {
+            teclas_enum_t evento = TECLA_F3;
+            xQueueSend(xColaTeclas, &evento, 0);
         }
-
-        /* Descanso para no asfixiar el scheduler si no se presiona nada */
-        vTaskDelay(pdMS_TO_TICKS(20));
+        if (DigitalInputHasActivated(placa->tecla_F4)) {
+            teclas_enum_t evento = TECLA_F4;
+            xQueueSend(xColaTeclas, &evento, 0);
+        }
+        if (DigitalInputHasActivated(placa->tecla_aceptar)) {
+            teclas_enum_t evento = TECLA_ACEPTAR;
+            xQueueSend(xColaTeclas, &evento, 0);
+        }
+        if (DigitalInputHasActivated(placa->tecla_cancelar)) {
+            teclas_enum_t evento = TECLA_CANCELAR;
+            xQueueSend(xColaTeclas, &evento, 0);
+        }
+        // Suspensión temporal: cede el procesador a otras tareas durante 50ms
+        vTaskDelay(pdMS_TO_TICKS(PERIODO_TECLADO_MS));
     }
 }
 
@@ -244,7 +218,7 @@ void TareaReloj(void * parametros) {
     teclas_enum_t tecla_recibida;
 
     // Hora temporal(formato BCD: {hora_d, hora_u, min_d, min_u})
-    uint8_t hora_bcd[4] = {0, 0, 0, 0}; 
+    uint8_t hora_bcd[4] = {0, 0, 0, 0};
     uint8_t hora_alarma_bcd[4] = {0, 0, 0, 0};
 
     // --- CONFIGURACIÓN INICIAL ---
@@ -262,11 +236,11 @@ void TareaReloj(void * parametros) {
             switch (args->modo) {
                 case MODO_SIN_AJUSTAR:
                 case MODO_NORMAL:
-                    if (tecla_recibida == TECLA_F1) {
+                    if (tecla_recibida == TECLA_F1_LARGA) {
                         CambiarModo(args, MODO_MINUTOS);
                         DisplayWriteBCD(args->display, hora_bcd, 4);
                     }
-                    if (tecla_recibida == TECLA_F2) {
+                    if (tecla_recibida == TECLA_F2_LARGA) {
                         CambiarModo(args, MODO_MINUTOS_ALARMA);
                         DisplayWriteBCD(args->display, hora_alarma_bcd, 4);
                     }
