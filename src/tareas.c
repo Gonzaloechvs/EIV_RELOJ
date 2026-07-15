@@ -228,6 +228,7 @@ void TareaReloj(void * parametros) {
     bool alarma_configurada = false;
     bool estado_punto_segundos = false;
     bool medio_segundo = false;
+    uint16_t contador_AFK = 0;
 
     // Hora temporal(formato BCD: {hora_d, hora_u, min_d, min_u})
     uint8_t hora_bcd[4] = {0, 0, 0, 0};
@@ -248,6 +249,16 @@ void TareaReloj(void * parametros) {
                 medio_segundo = !medio_segundo;
                 if (args->modo != MODO_SIN_AJUSTAR && medio_segundo) {
                     RelojNewTick(reloj);
+                }
+                if (args->modo != MODO_NORMAL && args->modo != MODO_SIN_AJUSTAR) {
+                    contador_AFK++;
+                    if (contador_AFK >= 60) { // 60 ciclos de 500ms = 30 segundos
+                        xSemaphoreTake(args->mutex, portMAX_DELAY);
+                        CambiarModo(args, MODO_NORMAL);
+                        DisplayWriteBCD(args->display, hora_bcd, 4);
+                        xSemaphoreGive(args->mutex);
+                        contador_AFK = 0;
+                    }
                 }
                 if (args->modo == MODO_NORMAL) {
                     xSemaphoreTake(args->mutex, portMAX_DELAY);
@@ -274,6 +285,8 @@ void TareaReloj(void * parametros) {
             }
             // EVENTO DE TECLADO (El usuario presionó un botón físico)
             else {
+                contador_AFK = 0; // Si el usuario toca un botón, reseteamos el timeout AFK
+
                 xSemaphoreTake(args->mutex, portMAX_DELAY);
                 // EVALUAMOS EL ESTADO ACTUAL
                 switch (args->modo) {
