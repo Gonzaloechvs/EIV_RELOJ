@@ -44,6 +44,7 @@ SPDX-License-Identifier: MIT
 /* Librerías de la capa de abstracción y de tareas */
 #include "placa.h"
 #include "tareas.h"
+#include "reloj.h"
 
 /* === Macros definitions ====================================================================== */
 
@@ -66,7 +67,13 @@ static display_task_args_t args_display;
  */
 QueueHandle_t xColaTeclas = NULL;
 
+clock_t reloj;
+
 /* === Private function definitions ============================================================ */
+
+void AlarmaCallback(void) {
+
+}
 
 /* === Public function implementation ========================================================== */
 
@@ -74,12 +81,15 @@ int main(void) {
     /* 1. Inicialización de la placa y periféricos */
     board_t placa = BoardCreate();
     
+    reloj = RelojCreate(1, AlarmaCallback);
+
     /* Sincronización del reloj interno para evitar que el PLL altere los Ticks de FreeRTOS */
     SystemCoreClockUpdate();
 
     /* 2. Creación de Objetos de Comunicación y Sincronización (IPC) */
     args_display.mutex = xSemaphoreCreateMutex();
     args_display.display = placa->pantalla;
+    args_display.modo = MODO_SIN_AJUSTAR;
     
     // CREAR LA COLA: Espacio para 10 eventos de tipo 'teclas_enum_t'
     xColaTeclas = xQueueCreate(10, sizeof(teclas_enum_t));

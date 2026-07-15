@@ -63,7 +63,8 @@ typedef enum {
     TECLA_F3,
     TECLA_F4,
     TECLA_ACEPTAR,
-    TECLA_CANCELAR
+    TECLA_CANCELAR,
+    EVENTO_TICK_500MS
 } teclas_enum_t;
 
 /** @brief Enumeración de los estados o modos de la Máquina de Estados */
