@@ -225,6 +225,7 @@ void TareaReloj(void * parametros) {
 
     extern clock_t reloj;
     bool alarma_habilitada = false;
+    bool alarma_configurada = false;
     bool estado_punto_segundos = false;
     bool medio_segundo = false;
 
@@ -292,8 +293,10 @@ void TareaReloj(void * parametros) {
                             DisplayWriteBCD(args->display, hora_alarma_bcd, 4);
                         }
                         else if (evento_recibido == TECLA_ACEPTAR) {
-                            RelojEnableAlarm(reloj);
-                            alarma_habilitada = true;
+                            if (alarma_configurada) {
+                                RelojEnableAlarm(reloj);
+                                alarma_habilitada = true;
+                            }
                         }
                         else if (evento_recibido == TECLA_CANCELAR) {
                             RelojDisableAlarm(reloj);
@@ -367,6 +370,7 @@ void TareaReloj(void * parametros) {
                             hora_t nueva_alarma = {hora_alarma_bcd[0], hora_alarma_bcd[1], hora_alarma_bcd[2], hora_alarma_bcd[3], 0, 0};
                             RelojSetupAlarm(reloj, nueva_alarma);
                             
+                            alarma_configurada = true;
                             alarma_habilitada = true;
                             
                             CambiarModo(args, MODO_NORMAL);
