@@ -43,6 +43,7 @@ SPDX-License-Identifier: MIT
 #include "queue.h"
 
 #include "screen.h"
+#include "placa.h"
 
 /* === Header for C++ compatibility ================================================================================ */
 
@@ -82,6 +83,7 @@ typedef struct {
     display_t display;
     SemaphoreHandle_t mutex;
     modo_reloj_t modo;
+    void * placa_ptr;
 } display_task_args_t;
 
 /* === Public variable declarations ================================================================================ */
@@ -105,6 +107,8 @@ void TareaTeclado(void * parametros);
  * @param parametros Puntero a la estructura display_task_args_t.
  */
 void TareaReloj(void * parametros);
+
+extern void AlarmaCallback(void);
 
 /* === End of conditional blocks =================================================================================== */
 

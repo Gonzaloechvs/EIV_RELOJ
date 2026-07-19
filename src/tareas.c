@@ -60,6 +60,8 @@ static const uint8_t LIMITE_HORAS[2]   = {2, 4}; // Límite exclusivo 24
 /** Referencia externa a la cola de eventos del teclado */
 extern QueueHandle_t xColaTeclas;
 
+volatile bool alarma_sonando = false;
+
 /* === Public variable definition  ============================================================= */
 
 static void CambiarModo(display_task_args_t * args, modo_reloj_t nuevo_modo) {
@@ -138,6 +140,10 @@ void DecrementarBCD(uint8_t numero[2], const uint8_t limite[2]) {
             numero[1]--;
         }
     }
+}
+
+void AlarmaCallback(void) {
+    alarma_sonando = true;
 }
 
 /* === Private function definitions ============================================================ */
@@ -223,6 +229,7 @@ void TareaReloj(void * parametros) {
     display_task_args_t * args = (display_task_args_t *) parametros;
     teclas_enum_t evento_recibido; // tambien tomamos el evento de los 500ms
 
+    board_t placa = (board_t) args->placa_ptr;
     extern clock_t reloj;
     bool alarma_habilitada = false;
     bool alarma_configurada = false;
@@ -248,8 +255,14 @@ void TareaReloj(void * parametros) {
             if (evento_recibido == EVENTO_TICK_500MS) {
                 medio_segundo = !medio_segundo;
                 if (args->modo != MODO_SIN_AJUSTAR && medio_segundo) {
-                    RelojNewTick(reloj);
+                    for (int i = 0; i < 60; i++) {
+                        RelojNewTick(reloj);
+                    }
                 }
+                if (alarma_sonando) {
+                    DigitalOutputToggle(placa->led_rgb_azul); // Hace bip intermitente
+                }
+                
                 if (args->modo != MODO_NORMAL && args->modo != MODO_SIN_AJUSTAR) {
                     contador_AFK++;
                     if (contador_AFK >= 60) { // 60 ciclos de 500ms = 30 segundos
@@ -288,116 +301,132 @@ void TareaReloj(void * parametros) {
                 contador_AFK = 0; // Si el usuario toca un botón, reseteamos el timeout AFK
 
                 xSemaphoreTake(args->mutex, portMAX_DELAY);
-                // EVALUAMOS EL ESTADO ACTUAL
-                switch (args->modo) {
-                    case MODO_SIN_AJUSTAR:
-                        if(evento_recibido == TECLA_F1_LARGA) {
-                            CambiarModo(args, MODO_MINUTOS);
-                            DisplayWriteBCD(args->display, hora_bcd, 4);
-                        }
-                        break;
-                    case MODO_NORMAL:
-                        if (evento_recibido == TECLA_F1_LARGA) {
-                            CambiarModo(args, MODO_MINUTOS);
-                            DisplayWriteBCD(args->display, hora_bcd, 4);
-                        }
-                        else if (evento_recibido == TECLA_F2_LARGA) {
-                            CambiarModo(args, MODO_MINUTOS_ALARMA);
-                            DisplayWriteBCD(args->display, hora_alarma_bcd, 4);
-                        }
-                        else if (evento_recibido == TECLA_ACEPTAR) {
-                            if (alarma_configurada) {
-                                RelojEnableAlarm(reloj);
-                                alarma_habilitada = true;
+                if (alarma_sonando) {
+                    if (evento_recibido == TECLA_ACEPTAR) {
+                        RelojSnoozeAlarm(reloj, 300); // Pospone por 5 minutos (300 segundos)
+                        alarma_sonando = false;
+                        DigitalOutputDeactivate(placa->led_rgb_azul); // Apaga el alarma de inmediato
+                        DisplayWriteBCD(args->display, hora_bcd, 4);
+                    }
+                    else if (evento_recibido == TECLA_CANCELAR) {
+                        RelojCancelAlarm(reloj); // Cancela hasta el próximo día
+                        alarma_sonando = false;
+                        DigitalOutputDeactivate(placa->led_rgb_azul); // Apaga la alarma de inmediato
+                        DisplayWriteBCD(args->display, hora_bcd, 4);
+                    }
+                } 
+                else {
+                    // EVALUAMOS EL ESTADO ACTUAL
+                    switch (args->modo) {
+                        case MODO_SIN_AJUSTAR:
+                            if(evento_recibido == TECLA_F1_LARGA) {
+                                CambiarModo(args, MODO_MINUTOS);
+                                DisplayWriteBCD(args->display, hora_bcd, 4);
                             }
-                        }
-                        else if (evento_recibido == TECLA_CANCELAR) {
-                            RelojDisableAlarm(reloj);
-                            alarma_habilitada = false;
-                        }
-                        break;
-                    case MODO_MINUTOS:
-                        if (evento_recibido == TECLA_ACEPTAR) {
-                            CambiarModo(args, MODO_HORAS);
-                        }
-                        else if (evento_recibido == TECLA_F4) {
-                            IncrementarBCD(&hora_bcd[2], LIMITE_MINUTOS);
-                            DisplayWriteBCD(args->display, hora_bcd, 4);
-                        }
-                        else if (evento_recibido == TECLA_F3) {
-                            DecrementarBCD(&hora_bcd[2], LIMITE_MINUTOS);
-                            DisplayWriteBCD(args->display, hora_bcd, 4);
-                        }
-                        else if (evento_recibido == TECLA_CANCELAR) {
-                            CambiarModo(args, MODO_NORMAL);
-                            DisplayWriteBCD(args->display, hora_bcd, 4);
-                        }
-                        break;
-                    case MODO_HORAS:
-                        if (evento_recibido == TECLA_F4) {
-                            IncrementarBCD(&hora_bcd[0], LIMITE_HORAS);
-                            DisplayWriteBCD(args->display, hora_bcd, 4);
-                        }
-                        else if (evento_recibido == TECLA_F3) {
-                            DecrementarBCD(&hora_bcd[0], LIMITE_HORAS);
-                            DisplayWriteBCD(args->display, hora_bcd, 4);
-                        }
-                        else if (evento_recibido == TECLA_ACEPTAR) {
-                            hora_t nueva_hora = {hora_bcd[0], hora_bcd[1], hora_bcd[2], hora_bcd[3]};
-                            RelojSetupCurrentTime(reloj, nueva_hora);
-                            CambiarModo(args, MODO_NORMAL);
-                            DisplayWriteBCD(args->display, hora_bcd, 4);
-                        }
-                        else if (evento_recibido == TECLA_CANCELAR) {
-                            CambiarModo(args, MODO_NORMAL);
-                            DisplayWriteBCD(args->display, hora_bcd, 4);
-                        }
-                        break;
-                    case MODO_MINUTOS_ALARMA:
-                        if (evento_recibido == TECLA_ACEPTAR) {
-                            CambiarModo(args, MODO_HORAS_ALARMA);
-                        }
-                        else if (evento_recibido == TECLA_F4) {
-                            IncrementarBCD(&hora_alarma_bcd[2], LIMITE_MINUTOS);
-                            DisplayWriteBCD(args->display, hora_alarma_bcd, 4);
-                        }
-                        else if (evento_recibido == TECLA_F3) {
-                            DecrementarBCD(&hora_alarma_bcd[2], LIMITE_MINUTOS);
-                            DisplayWriteBCD(args->display, hora_alarma_bcd, 4);
-                        }
-                        else if (evento_recibido == TECLA_CANCELAR) {
-                            CambiarModo(args, MODO_NORMAL);
-                            DisplayWriteBCD(args->display, hora_bcd, 4);
-                        }
-                        break;
-                    case MODO_HORAS_ALARMA:
-                        if (evento_recibido == TECLA_F4) {
-                            IncrementarBCD(&hora_alarma_bcd[0], LIMITE_HORAS);
-                            DisplayWriteBCD(args->display, hora_alarma_bcd, 4);
-                        }
-                        else if (evento_recibido == TECLA_F3) {
-                            DecrementarBCD(&hora_alarma_bcd[0], LIMITE_HORAS);
-                            DisplayWriteBCD(args->display, hora_alarma_bcd, 4);
-                        }
-                        else if (evento_recibido == TECLA_ACEPTAR) {
-                            hora_t nueva_alarma = {hora_alarma_bcd[0], hora_alarma_bcd[1], hora_alarma_bcd[2], hora_alarma_bcd[3], 0, 0};
-                            RelojSetupAlarm(reloj, nueva_alarma);
-                            
-                            alarma_configurada = true;
-                            alarma_habilitada = true;
-                            
-                            CambiarModo(args, MODO_NORMAL);
-                            DisplayWriteBCD(args->display, hora_bcd, 4);
-                        }
-                        else if (evento_recibido == TECLA_CANCELAR) {
-                            CambiarModo(args, MODO_NORMAL);
-                            DisplayWriteBCD(args->display, hora_bcd, 4);
-                        }
-                        break;
-                }
-                if (args->modo == MODO_NORMAL) {
-                    if (alarma_habilitada) DisplaySetDots(args->display, 3, 3);
-                    else DisplayClearDots(args->display, 3, 3);
+                            break;
+                        case MODO_NORMAL:
+                            if (evento_recibido == TECLA_F1_LARGA) {
+                                CambiarModo(args, MODO_MINUTOS);
+                                DisplayWriteBCD(args->display, hora_bcd, 4);
+                            }
+                            else if (evento_recibido == TECLA_F2_LARGA) {
+                                CambiarModo(args, MODO_MINUTOS_ALARMA);
+                                DisplayWriteBCD(args->display, hora_alarma_bcd, 4);
+                            }
+                            else if (evento_recibido == TECLA_ACEPTAR) {
+                                if (alarma_configurada) {
+                                    RelojEnableAlarm(reloj);
+                                    alarma_habilitada = true;
+                                }
+                            }
+                            else if (evento_recibido == TECLA_CANCELAR) {
+                                RelojDisableAlarm(reloj);
+                                alarma_habilitada = false;
+                            }
+                            break;
+                        case MODO_MINUTOS:
+                            if (evento_recibido == TECLA_ACEPTAR) {
+                                CambiarModo(args, MODO_HORAS);
+                            }
+                            else if (evento_recibido == TECLA_F4) {
+                                IncrementarBCD(&hora_bcd[2], LIMITE_MINUTOS);
+                                DisplayWriteBCD(args->display, hora_bcd, 4);
+                            }
+                            else if (evento_recibido == TECLA_F3) {
+                                DecrementarBCD(&hora_bcd[2], LIMITE_MINUTOS);
+                                DisplayWriteBCD(args->display, hora_bcd, 4);
+                            }
+                            else if (evento_recibido == TECLA_CANCELAR) {
+                                CambiarModo(args, MODO_NORMAL);
+                                DisplayWriteBCD(args->display, hora_bcd, 4);
+                            }
+                            break;
+                        case MODO_HORAS:
+                            if (evento_recibido == TECLA_F4) {
+                                IncrementarBCD(&hora_bcd[0], LIMITE_HORAS);
+                                DisplayWriteBCD(args->display, hora_bcd, 4);
+                            }
+                            else if (evento_recibido == TECLA_F3) {
+                                DecrementarBCD(&hora_bcd[0], LIMITE_HORAS);
+                                DisplayWriteBCD(args->display, hora_bcd, 4);
+                            }
+                            else if (evento_recibido == TECLA_ACEPTAR) {
+                                hora_t nueva_hora = {hora_bcd[0], hora_bcd[1], hora_bcd[2], hora_bcd[3]};
+                                RelojSetupCurrentTime(reloj, nueva_hora);
+                                CambiarModo(args, MODO_NORMAL);
+                                DisplayWriteBCD(args->display, hora_bcd, 4);
+                            }
+                            else if (evento_recibido == TECLA_CANCELAR) {
+                                CambiarModo(args, MODO_NORMAL);
+                                DisplayWriteBCD(args->display, hora_bcd, 4);
+                            }
+                            break;
+                        case MODO_MINUTOS_ALARMA:
+                            if (evento_recibido == TECLA_ACEPTAR) {
+                                CambiarModo(args, MODO_HORAS_ALARMA);
+                            }
+                            else if (evento_recibido == TECLA_F4) {
+                                IncrementarBCD(&hora_alarma_bcd[2], LIMITE_MINUTOS);
+                                DisplayWriteBCD(args->display, hora_alarma_bcd, 4);
+                            }
+                            else if (evento_recibido == TECLA_F3) {
+                                DecrementarBCD(&hora_alarma_bcd[2], LIMITE_MINUTOS);
+                                DisplayWriteBCD(args->display, hora_alarma_bcd, 4);
+                            }
+                            else if (evento_recibido == TECLA_CANCELAR) {
+                                CambiarModo(args, MODO_NORMAL);
+                                DisplayWriteBCD(args->display, hora_bcd, 4);
+                            }
+                            break;
+                        case MODO_HORAS_ALARMA:
+                            if (evento_recibido == TECLA_F4) {
+                                IncrementarBCD(&hora_alarma_bcd[0], LIMITE_HORAS);
+                                DisplayWriteBCD(args->display, hora_alarma_bcd, 4);
+                            }
+                            else if (evento_recibido == TECLA_F3) {
+                                DecrementarBCD(&hora_alarma_bcd[0], LIMITE_HORAS);
+                                DisplayWriteBCD(args->display, hora_alarma_bcd, 4);
+                            }
+                            else if (evento_recibido == TECLA_ACEPTAR) {
+                                hora_t nueva_alarma = {hora_alarma_bcd[0], hora_alarma_bcd[1], hora_alarma_bcd[2], hora_alarma_bcd[3], 0, 0};
+                                RelojSetupAlarm(reloj, nueva_alarma);
+
+                                alarma_configurada = true;
+                                alarma_habilitada = true;
+
+                                CambiarModo(args, MODO_NORMAL);
+                                DisplayWriteBCD(args->display, hora_bcd, 4);
+                            }
+                            else if (evento_recibido == TECLA_CANCELAR) {
+                                CambiarModo(args, MODO_NORMAL);
+                                DisplayWriteBCD(args->display, hora_bcd, 4);
+                            }
+                            break;
+                    }
+                    if (args->modo == MODO_NORMAL) {
+                        if (alarma_habilitada) DisplaySetDots(args->display, 3, 3);
+                        else DisplayClearDots(args->display, 3, 3);
+                    }
                 }
                 xSemaphoreGive(args->mutex);
             }

@@ -71,9 +71,9 @@ clock_t reloj;
 
 /* === Private function definitions ============================================================ */
 
-void AlarmaCallback(void) {
+// void AlarmaCallback(void) {
 
-}
+// }
 
 /* === Public function implementation ========================================================== */
 
@@ -90,13 +90,10 @@ int main(void) {
     args_display.mutex = xSemaphoreCreateMutex();
     args_display.display = placa->pantalla;
     args_display.modo = MODO_SIN_AJUSTAR;
+    args_display.placa_ptr = (void *) placa;
     
     // CREAR LA COLA: Espacio para 10 eventos de tipo 'teclas_enum_t'
     xColaTeclas = xQueueCreate(10, sizeof(teclas_enum_t));
-
-    /* Escritura de prueba en el display para validar el inicio y el barrido constante */
-    uint8_t hora_de_prueba[4] = {1, 2, 3, 4};
-    DisplayWriteBCD(placa->pantalla, hora_de_prueba, 4);
 
     /* 3. Registro de las Tareas (Solo si los objetos IPC se crearon con éxito en memoria) */
     if ((args_display.mutex != NULL) && (xColaTeclas != NULL)) {
