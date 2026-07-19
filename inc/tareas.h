@@ -41,6 +41,7 @@ SPDX-License-Identifier: MIT
 #include "task.h"
 #include "semphr.h"
 #include "queue.h"
+#include "timers.h"
 
 #include "screen.h"
 #include "placa.h"
@@ -109,6 +110,12 @@ void TareaTeclado(void * parametros);
 void TareaReloj(void * parametros);
 
 extern void AlarmaCallback(void);
+
+/**
+ * @brief Callback del Software Timer de FreeRTOS (500 ms).
+ * @param xTimer Handle del timer que originó la llamada.
+ */
+void TimerTickCallback(TimerHandle_t xTimer);
 
 /* === End of conditional blocks =================================================================================== */
 

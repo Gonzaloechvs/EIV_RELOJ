@@ -40,6 +40,7 @@ SPDX-License-Identifier: MIT
 #include "task.h"
 #include "semphr.h"
 #include "queue.h"
+#include "timers.h"
 
 /* Librerías de la capa de abstracción y de tareas */
 #include "placa.h"
@@ -99,6 +100,18 @@ int main(void) {
     if ((args_display.mutex != NULL) && (xColaTeclas != NULL)) {
         //Si no se tomo el mutex y si hay una cola de las teclas
         
+        TimerHandle_t timer_reloj = xTimerCreate(
+            "Timer_500ms",              // Nombre para depuración
+            pdMS_TO_TICKS(500),         // Período exacto de 500 ms
+            pdTRUE,                     // Auto-Reload: se reinicia infinitamente
+            (void *) 0,                 // ID del timer (no lo necesitamos)
+            TimerTickCallback           // Función a ejecutar
+        );
+
+        if (timer_reloj != NULL) {
+            xTimerStart(timer_reloj, 0); // Arrancamos el timer (0 = sin bloquear)
+        }
+
         /* Tarea de Display: Prioridad Máxima (configMAX_PRIORITIES - 1) */
         // Este es la maxima prioridad ya que se debe tener en cuenta para el manejo del display
         xTaskCreate(

@@ -60,6 +60,8 @@ static const uint8_t LIMITE_HORAS[2]   = {2, 4}; // Límite exclusivo 24
 /** Referencia externa a la cola de eventos del teclado */
 extern QueueHandle_t xColaTeclas;
 
+extern clock_t reloj;
+
 volatile bool alarma_sonando = false;
 
 /* === Public variable definition  ============================================================= */
@@ -146,6 +148,12 @@ void AlarmaCallback(void) {
     alarma_sonando = true;
 }
 
+void TimerTickCallback(TimerHandle_t xTimer) {
+teclas_enum_t evento = EVENTO_TICK_500MS;
+// Se envía el evento a la máquina de estados con tiempo de bloqueo 0
+xQueueSend(xColaTeclas, &evento, 0);
+}
+
 /* === Private function definitions ============================================================ */
 
 /* === Public function implementation ========================================================== */
@@ -172,7 +180,6 @@ void TareaTeclado(void * parametros) {
 
     uint16_t contador_f1 = 0;
     uint16_t contador_f2 = 0;
-    uint16_t contador_500ms = 0;
 
     while (true) {
         /* --- TECLAS DE PULSACIÓN LARGA (F1 y F2) --- */
@@ -213,13 +220,6 @@ void TareaTeclado(void * parametros) {
             xQueueSend(xColaTeclas, &evento, 0);
         }
 
-        /* --- GENERADOR DE BASE DE TIEMPO (500 ms) --- */
-        contador_500ms++;
-        if (contador_500ms >= 10) { // 10 ciclos de 50ms = 500ms
-            teclas_enum_t evento = EVENTO_TICK_500MS;
-            xQueueSend(xColaTeclas, &evento, 0);
-            contador_500ms = 0;
-        }
         // Suspensión temporal: cede el procesador a otras tareas durante 50ms
         vTaskDelay(pdMS_TO_TICKS(PERIODO_TECLADO_MS));
     }
@@ -230,7 +230,6 @@ void TareaReloj(void * parametros) {
     teclas_enum_t evento_recibido; // tambien tomamos el evento de los 500ms
 
     board_t placa = (board_t) args->placa_ptr;
-    extern clock_t reloj;
     bool alarma_habilitada = false;
     bool alarma_configurada = false;
     bool estado_punto_segundos = false;
@@ -255,9 +254,7 @@ void TareaReloj(void * parametros) {
             if (evento_recibido == EVENTO_TICK_500MS) {
                 medio_segundo = !medio_segundo;
                 if (args->modo != MODO_SIN_AJUSTAR && medio_segundo) {
-                    for (int i = 0; i < 60; i++) {
-                        RelojNewTick(reloj);
-                    }
+                    RelojNewTick(reloj);
                 }
                 if (alarma_sonando) {
                     DigitalOutputToggle(placa->led_rgb_azul); // Hace bip intermitente
