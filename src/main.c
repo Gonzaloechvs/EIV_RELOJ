@@ -49,7 +49,7 @@ SPDX-License-Identifier: MIT
 
 /* === Macros definitions ====================================================================== */
 
-/** Cantidad máxima de eventos de tecla que la cola puede almacenar sin procesar */
+/** @brief Cantidad máxima de eventos de tecla que la cola puede almacenar sin procesar */
 #define EVENTOS_TECLADO_MAX 10
 
 /* === Private data type declarations ========================================================== */
@@ -58,26 +58,31 @@ SPDX-License-Identifier: MIT
 
 /* === Private variable definitions ============================================================ */
 
-/** Argumentos estáticos para pasar a la tarea de display sin perder alcance (scope) */
+/** @brief Argumentos estáticos para pasar a la tarea de display sin perder alcance (scope) */
 static display_task_args_t args_display;
 
 /* === Public variable definition  ============================================================= */
 
-/** * Cola pública de eventos de teclado.
- * Se define aquí pero se utiliza con 'extern' dentro de tareas.c
+/** 
+ * @brief Cola pública de mensajes para sincronizar eventos de hardware y tiempo.
+ * Tiene capacidad para almacenar hasta 10 eventos pendientes de tipo teclas_enum_t.
  */
 QueueHandle_t xColaTeclas = NULL;
 
+/** @brief Instancia del reloj lógico que maneja la matemática del tiempo */
 clock_t reloj;
 
 /* === Private function definitions ============================================================ */
 
-// void AlarmaCallback(void) {
-
-// }
-
 /* === Public function implementation ========================================================== */
 
+/**
+ * @brief Función principal del sistema (Punto de entrada).
+ * Se encarga de inicializar el hardware (HAL), instanciar los objetos de 
+ * sincronización de FreeRTOS (Colas, Mutex, Timers), registrar las tareas en 
+ * el planificador y finalmente lanzar el Scheduler expropiativo.
+ * @return int Retorno estándar de C. En este sistema RTOS, nunca debería retornar.
+ */
 int main(void) {
     /* 1. Inicialización de la placa y periféricos */
     board_t placa = BoardCreate();
@@ -98,8 +103,8 @@ int main(void) {
 
     /* 3. Registro de las Tareas (Solo si los objetos IPC se crearon con éxito en memoria) */
     if ((args_display.mutex != NULL) && (xColaTeclas != NULL)) {
-        //Si no se tomo el mutex y si hay una cola de las teclas
         
+        // Creación del Software Timer para la base de tiempo del reloj
         TimerHandle_t timer_reloj = xTimerCreate(
             "Timer_500ms",              // Nombre para depuración
             pdMS_TO_TICKS(500),         // Período exacto de 500 ms

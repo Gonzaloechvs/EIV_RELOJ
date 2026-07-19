@@ -60,12 +60,20 @@ static const uint8_t LIMITE_HORAS[2]   = {2, 4}; // Límite exclusivo 24
 /** Referencia externa a la cola de eventos del teclado */
 extern QueueHandle_t xColaTeclas;
 
+/** Referencia externa a la instancia del reloj lógico */
 extern clock_t reloj;
 
 volatile bool alarma_sonando = false;
 
 /* === Public variable definition  ============================================================= */
 
+/**
+ * @brief Gestiona las transiciones visuales al cambiar de modo en la máquina de estados.
+ * Esta función limpia los efectos visuales actuales (parpadeos y puntos) de la 
+ * pantalla multiplexada y aplica los nuevos efectos correspondientes al modo solicitado.
+ * @param args Puntero a la estructura de argumentos del display que contiene el modo actual.
+ * @param nuevo_modo El estado al cual el sistema va a transicionar.
+ */
 static void CambiarModo(display_task_args_t * args, modo_reloj_t nuevo_modo) {
     args->modo = nuevo_modo;
 
@@ -79,7 +87,7 @@ static void CambiarModo(display_task_args_t * args, modo_reloj_t nuevo_modo) {
         DisplaySetDots(args->display, 1, 1);
         break;
     case MODO_NORMAL:
-    // se setea desde TareaReloj
+        // Se gestiona dinámicamente desde TareaReloj
         break;
     case MODO_MINUTOS:
         DisplayFlashDigits(args->display, 2, 3, 100);
@@ -174,7 +182,6 @@ void TareaDisplay(void * parametros) {
     }
 }
 
-/* Reemplaza o agrega tu TareaTeclado en la sección de implementaciones */
 void TareaTeclado(void * parametros) {
     board_t placa = (board_t) parametros;
 
@@ -225,9 +232,13 @@ void TareaTeclado(void * parametros) {
     }
 }
 
+/**
+ * @brief Tarea principal que gestiona la lógica del reloj y la alarma.
+ * @param parametros Puntero genérico a la estructura display_task_args_t.
+ */
 void TareaReloj(void * parametros) {
     display_task_args_t * args = (display_task_args_t *) parametros;
-    teclas_enum_t evento_recibido; // tambien tomamos el evento de los 500ms
+    teclas_enum_t evento_recibido;
 
     board_t placa = (board_t) args->placa_ptr;
     bool alarma_habilitada = false;
@@ -250,19 +261,23 @@ void TareaReloj(void * parametros) {
         // Dormimos la tarea hasta que el usuario presione algo
         if (xQueueReceive(xColaTeclas, &evento_recibido, portMAX_DELAY) == pdTRUE) {
 
-            // EVENTO DE TIEMPO (Ocurre matemáticamente cada 500ms)
+            // EVENTO DE TIEMPO (Generado por el Software Timer)
             if (evento_recibido == EVENTO_TICK_500MS) {
                 medio_segundo = !medio_segundo;
+                // Avanzamos el reloj lógico cada 1 segundo real (dos ticks)
                 if (args->modo != MODO_SIN_AJUSTAR && medio_segundo) {
                     RelojNewTick(reloj);
                 }
                 if (alarma_sonando) {
                     DigitalOutputToggle(placa->led_rgb_azul); // Hace bip intermitente
                 }
-                
+                /* Timeout de Inactividad (AFK):
+                 * Si el usuario ingresa a un menú de edición y no presiona botones 
+                 * durante 30 segundos (60 ticks de 500ms), abortamos y regresamos al modo normal.
+                 */
                 if (args->modo != MODO_NORMAL && args->modo != MODO_SIN_AJUSTAR) {
                     contador_AFK++;
-                    if (contador_AFK >= 60) { // 60 ciclos de 500ms = 30 segundos
+                    if (contador_AFK >= 60) {
                         xSemaphoreTake(args->mutex, portMAX_DELAY);
                         CambiarModo(args, MODO_NORMAL);
                         DisplayWriteBCD(args->display, hora_bcd, 4);
@@ -270,6 +285,7 @@ void TareaReloj(void * parametros) {
                         contador_AFK = 0;
                     }
                 }
+                // Refresco asíncrono visual
                 if (args->modo == MODO_NORMAL) {
                     xSemaphoreTake(args->mutex, portMAX_DELAY);
                     if (medio_segundo) {
@@ -295,25 +311,25 @@ void TareaReloj(void * parametros) {
             }
             // EVENTO DE TECLADO (El usuario presionó un botón físico)
             else {
-                contador_AFK = 0; // Si el usuario toca un botón, reseteamos el timeout AFK
+                contador_AFK = 0; // Reiniciamos el timeout al detectar actividad
 
                 xSemaphoreTake(args->mutex, portMAX_DELAY);
                 if (alarma_sonando) {
                     if (evento_recibido == TECLA_ACEPTAR) {
                         RelojSnoozeAlarm(reloj, 300); // Pospone por 5 minutos (300 segundos)
                         alarma_sonando = false;
-                        DigitalOutputDeactivate(placa->led_rgb_azul); // Apaga el alarma de inmediato
+                        DigitalOutputDeactivate(placa->led_rgb_azul);
                         DisplayWriteBCD(args->display, hora_bcd, 4);
                     }
                     else if (evento_recibido == TECLA_CANCELAR) {
                         RelojCancelAlarm(reloj); // Cancela hasta el próximo día
                         alarma_sonando = false;
-                        DigitalOutputDeactivate(placa->led_rgb_azul); // Apaga la alarma de inmediato
+                        DigitalOutputDeactivate(placa->led_rgb_azul);
                         DisplayWriteBCD(args->display, hora_bcd, 4);
                     }
                 } 
                 else {
-                    // EVALUAMOS EL ESTADO ACTUAL
+                    // MÁQUINA DE ESTADOS
                     switch (args->modo) {
                         case MODO_SIN_AJUSTAR:
                             if(evento_recibido == TECLA_F1_LARGA) {
@@ -420,6 +436,7 @@ void TareaReloj(void * parametros) {
                             }
                             break;
                     }
+                    // Restauración visual de puntos al volver a MODO_NORMAL
                     if (args->modo == MODO_NORMAL) {
                         if (alarma_habilitada) DisplaySetDots(args->display, 3, 3);
                         else DisplayClearDots(args->display, 3, 3);
